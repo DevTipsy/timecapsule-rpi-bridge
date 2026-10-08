@@ -355,5 +355,5 @@ bold "
    sudo timecapsule-ctl mount       remonter à la main (demande le mot de passe au terminal)
    sudo timecapsule-ctl audit       vérifications de sécurité
 
- La première sauvegarde dure plusieurs jours, c'est normal.
+ Une première sauvegarde complète peut durer plusieurs jours (les suivantes prennent quelques minutes).
 "

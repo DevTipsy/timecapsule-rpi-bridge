@@ -214,12 +214,11 @@ The installer includes the Samba files from `/etc/samba/timecapsule-*.conf` inst
 
 ## Good to Know
 
-- The first backup is very slow (several days) — data goes through the AFP/FUSE bridge
-- Subsequent incremental backups are fast (minutes)
+- A first *full* backup is slow (days for a 1–2 TB disk: roughly 10 to 20 GB/h observed through the AFP/FUSE bridge). Later backups only copy what changed and take minutes
 - The Pi **must** be on Ethernet for stability
 - The 3 protection layers auto-remount the capsule if the AFP connection drops
 - Keep at least 100 GB free on the capsule: Time Machine refuses to back up below that. Set a `Max backup size` smaller than the disk, and remove old backups before the disk fills up
-- Configure **only one** Time Machine destination for the same capsule on the Mac (not the capsule directly over AFP *and* the Pi over SMB): two destinations can write to the same backup
+- Configure **only one** Time Machine destination for the same capsule on the Mac (not the capsule directly over AFP *and* the Pi over SMB): both destinations point to the same backup file, which is confusing and risky
 
 ## Troubleshooting
 

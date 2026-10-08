@@ -9,7 +9,7 @@
     <tr><td>Version</td><td>2 (octobre / October 2026) : installation en un clic, surveillance, journaux, mots de passe chiffrés</td></tr>
     <tr><td>Matériel / Hardware</td><td>Raspberry Pi 4 (2 Go+) en Ethernet + Apple Time Capsule</td></tr>
     <tr><td>Système / OS</td><td>Raspberry Pi OS Lite 64 bits (Debian Trixie)</td></tr>
-    <tr><td>Durée / Time</td><td>≈ 1 h (hors première sauvegarde, qui prend plusieurs jours / excluding the first backup, which takes days)</td></tr>
+    <tr><td>Durée / Time</td><td>≈ 1 h (hors première sauvegarde <i>complète</i>, qui peut prendre plusieurs jours / excluding a first <i>full</i> backup, which can take days)</td></tr>
     <tr><td>Testé sur / Tested on</td><td>Raspberry Pi 4 (2 Go), Debian Trixie, macOS Tahoe, Time Capsule 802.11ac (firmware 7.9.1)</td></tr>
     <tr><td>Crédits / Credits</td><td>afpfs-ng (Simon Vetter) · afpfs-ng-deb (Rafael Cavalcanti) · Samba · Avahi · github.com/DevTipsy/timecapsule-rpi-bridge</td></tr>
   </table>
@@ -136,7 +136,7 @@ sudo systemctl daemon-reload</code></pre>
 
 <h3>11. À savoir</h3>
 <ul>
-  <li>La <b>première sauvegarde est très longue</b> (plusieurs jours : ≈ 9 Go/h mesurés, car tout passe par le pont AFP/FUSE). Les suivantes sont rapides.</li>
+  <li>Une <b>première sauvegarde complète est longue</b> (plusieurs jours pour un disque de 1 à 2 To : de l'ordre de 10 à 20 Go/h observés, car tout passe par le pont AFP/FUSE). Les sauvegardes suivantes ne copient que les nouveautés et prennent quelques minutes.</li>
   <li>Gardez <b>100 Go libres</b> sur la capsule, et réglez une taille maximale inférieure à celle du disque.</li>
   <li>Le Pi doit être en <b>Ethernet</b>. Si vous gardez aussi le Wi-Fi actif, notez que le Pi aura deux adresses.</li>
   <li>Si un assistant IA vous guide, <b>ne lui donnez jamais vos mots de passe</b> : saisissez-les vous-même.</li>
@@ -254,7 +254,7 @@ sudo systemctl daemon-reload</code></pre>
 
 <h3>11. Good to know</h3>
 <ul>
-  <li>The <b>first backup is very slow</b> (days: ≈ 9 GB/h measured, since everything goes through the AFP/FUSE bridge). Later ones are fast.</li>
+  <li>A <b>first full backup is slow</b> (days for a 1–2 TB disk: roughly 10 to 20 GB/h observed, since everything goes through the AFP/FUSE bridge). Later backups only copy what changed and take minutes.</li>
   <li>Keep <b>100 GB free</b> on the capsule, and set a maximum size below the disk size.</li>
   <li>The Pi must be on <b>Ethernet</b>. If you also keep Wi-Fi on, the Pi will have two addresses.</li>
   <li>If an AI assistant guides you, <b>never give it your passwords</b>: type them yourself.</li>
