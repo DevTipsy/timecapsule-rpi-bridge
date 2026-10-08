@@ -6,3 +6,9 @@ socket options = TCP_NODELAY IPTOS_LOWLATENCY SO_KEEPALIVE
 min protocol = SMB2
 kernel oplocks = no
 kernel share modes = no
+
+# Pas d'imprimantes : évite que smbd cherche CUPS (lenteurs au démarrage si CUPS est absent)
+load printers = no
+printing = bsd
+printcap name = /dev/null
+disable spoolss = yes
