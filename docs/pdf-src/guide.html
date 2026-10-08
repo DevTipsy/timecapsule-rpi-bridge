@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Apple Time Capsule + Raspberry Pi : pont AFP vers SMB pour Time Machine</title><link rel="stylesheet" href="style.css"></head><body>
+
+<div class="cover">
+  <h1>Apple Time Capsule + Raspberry Pi</h1>
+  <p class="sub">Pont AFP → SMB pour Time Machine · AFP → SMB bridge for Time Machine</p>
+  <table class="meta">
+    <tr><td>Auteur / Author</td><td>Tipsy</td></tr>
+    <tr><td>Version</td><td>2 (octobre / October 2026) : installation en un clic, surveillance, journaux, mots de passe chiffrés</td></tr>
+    <tr><td>Matériel / Hardware</td><td>Raspberry Pi 4 (2 Go+) en Ethernet + Apple Time Capsule</td></tr>
+    <tr><td>Système / OS</td><td>Raspberry Pi OS Lite 64 bits (Debian Trixie)</td></tr>
+    <tr><td>Durée / Time</td><td>≈ 1 h (hors première sauvegarde, qui prend plusieurs jours / excluding the first backup, which takes days)</td></tr>
+    <tr><td>Testé sur / Tested on</td><td>Raspberry Pi 4 (2 Go), Debian Trixie, macOS Tahoe, Time Capsule 802.11ac (firmware 7.9.1)</td></tr>
+    <tr><td>Crédits / Credits</td><td>afpfs-ng (Simon Vetter) · afpfs-ng-deb (Rafael Cavalcanti) · Samba · Avahi · github.com/DevTipsy/timecapsule-rpi-bridge</td></tr>
+  </table>
+</div>
+
+<p><b>Pourquoi ? / Why?</b> La Time Capsule ne partage son disque qu'en AFP, un protocole qu'Apple abandonne : macOS 27 ne saura plus s'y connecter. Un Raspberry Pi sert de pont : il monte la capsule en AFP et la repartage en SMB, que le Mac comprend toujours. / <i>The Time Capsule only shares its disk over AFP, which Apple is dropping: macOS 27 can no longer connect to it. A Raspberry Pi acts as a bridge: it mounts the capsule over AFP and re-shares it over SMB, which the Mac still understands.</i></p>
+
+<div class="diagram">
+  <div class="box"><b>Mac</b>Time Machine<br><small>SMB</small></div><div class="arrow">→<small>SMB</small></div>
+  <div class="box"><b>Raspberry Pi</b>Samba + surveillance<br><small>client AFP (FUSE)</small></div><div class="arrow">→<small>AFP</small></div>
+  <div class="box"><b>Time Capsule</b>disque<br><small>AFP seulement</small></div>
+</div>
+
+<div class="note"><b>Nouveautés de la version 2 / What's new in v2.</b> L'ancienne version (cron, mots de passe dans les scripts) pouvait s'arrêter après quelques semaines sans prévenir. Cette version se répare toute seule, journalise chaque panne avec l'état avant/après, et ne stocke aucun mot de passe en clair. / <i>The old version (cron, passwords in scripts) could silently stop after a few weeks. This one repairs itself, logs every outage with a before/after state, and stores no clear-text password.</i></div>
+
+<!-- ===================================== FRANÇAIS ===================================== -->
+<h2>FRANÇAIS</h2>
+
+<h3>1. Ce qu'il vous faut</h3>
+<ul>
+  <li>Un <b>Raspberry Pi 4</b> (2 Go de RAM ou plus), son alimentation, une carte microSD, un <b>câble Ethernet</b> vers votre box (le Wi-Fi n'est pas assez stable pour ce rôle).</li>
+  <li>Votre <b>Time Capsule</b>, branchée en Ethernet à la box.</li>
+  <li>Un Mac ou un PC Windows pour lancer l'installation.</li>
+  <li>Le <b>mot de passe du disque</b> de la Time Capsule.</li>
+</ul>
+
+<h3>2. Préparer le Raspberry Pi</h3>
+<ol>
+  <li>Installez <b>Raspberry Pi Imager</b> (raspberrypi.com/software) sur votre ordinateur.</li>
+  <li>Choisissez <b>Raspberry Pi OS Lite (64-bit)</b>, puis les réglages avancés (engrenage) : <b>activez SSH</b> et choisissez un <b>nom d'utilisateur</b> et un mot de passe.</li>
+  <li>Écrivez sur la carte, insérez-la dans le Pi, branchez <b>Ethernet</b> puis l'alimentation. Attendez 2 minutes.</li>
+</ol>
+<p>Le Pi s'appelle en général <code>raspberrypi.local</code>. Sinon, son adresse IP figure dans l'interface de votre box.</p>
+
+<h3>3. Préparer la Time Capsule</h3>
+<ol>
+  <li>Dans <b>Utilitaire AirPort</b> (Mac, iPhone ou iPad) : sélectionnez la capsule › Modifier › onglet <b>Disques</b>.</li>
+  <li><b>Renommez le disque sans espaces</b> (ex. <code>AirPortTimeCapsule</code>) : le client AFP ne gère pas les espaces. Cliquez Mettre à jour (≈ 2 min).</li>
+  <li>Notez le <b>mot de passe du disque</b> et l'<b>adresse IP</b> de la capsule.</li>
+</ol>
+<div class="note"><b>Nom d'utilisateur AFP.</b> Selon les réglages, la capsule peut exiger un nom d'utilisateur en plus du mot de passe. Pour le retrouver : sur un Mac qui s'y connecte déjà, ouvrez <b>Trousseau d'accès</b>, cherchez le nom de votre capsule et lisez le champ <b>Compte</b>. Si votre capsule n'en demande pas, laissez vide.</div>
+
+<h3>4. Installer en un clic</h3>
+<p>Téléchargez le zip correspondant à votre ordinateur depuis la page GitHub du projet (dossier <code>installers</code>) :</p>
+<table>
+  <tr><th>Ordinateur</th><th>Fichier</th><th>Lancer</th></tr>
+  <tr><td>Mac</td><td><code>TimeCapsule-Bridge-macOS.zip</code></td><td>Décompresser, double-clic sur <code>Installer-macOS.command</code></td></tr>
+  <tr><td>Windows 10/11</td><td><code>TimeCapsule-Bridge-Windows.zip</code></td><td>Clic droit › Extraire tout, double-clic sur <code>Installer-Windows.bat</code></td></tr>
+</table>
+<p>macOS ou Windows peuvent afficher un avertissement car le fichier n'est pas signé : sur Mac, clic droit › Ouvrir › Ouvrir (ou Réglages Système › Confidentialité et sécurité › « Ouvrir quand même ») ; sur Windows, « Informations complémentaires » › « Exécuter quand même ».</p>
+<p>Le lanceur demande l'adresse du Pi et son nom d'utilisateur, copie le projet sur le Pi, puis exécute l'installateur à distance. <b>Le mot de passe du Pi est demandé par le Pi lui-même</b> (rien ne s'affiche quand vous tapez) ; le lanceur ne le voit jamais.</p>
+<h3>Variante : en ligne de commande</h3>
+<pre><code>ssh votre_utilisateur@raspberrypi.local
+sudo apt update &amp;&amp; sudo apt install -y git
+git clone https://github.com/DevTipsy/timecapsule-rpi-bridge.git
+cd timecapsule-rpi-bridge &amp;&amp; sudo bash install.sh</code></pre>
+
+<h3>5. Les questions de l'installateur</h3>
+<table>
+  <tr><th>Question</th><th>Réponse</th></tr>
+  <tr><td>IP de la Time Capsule</td><td>ex. <code>192.168.1.15</code></td></tr>
+  <tr><td>Nom du volume (sans espaces)</td><td>ex. <code>AirPortTimeCapsule</code></td></tr>
+  <tr><td>Utilisateur Samba</td><td>un utilisateur existant du Pi (celui de l'étape 2)</td></tr>
+  <tr><td>Utilisateur AFP de la capsule</td><td>vide dans la plupart des cas, sinon le champ « Compte » du Trousseau</td></tr>
+  <tr><td>Taille maximale de la sauvegarde</td><td>laissez <code>-</code> (illimité), ou un peu moins que la taille du disque (ex. <code>1500G</code>)</td></tr>
+  <tr><td>Mémoriser le mot de passe de la capsule ?</td><td><b>Oui</b> (recommandé) : chiffré, remontage automatique après une coupure. <b>Non</b> : en mémoire seulement, à ressaisir après un redémarrage.</td></tr>
+  <tr><td>Mot de passe du disque de la capsule</td><td>saisi deux fois, masqué</td></tr>
+  <tr><td>Mot de passe Samba</td><td>celui que vous taperez sur le Mac (saisi directement dans <code>smbpasswd</code>)</td></tr>
+</table>
+<p>La compilation du client AFP prend 10 à 30 minutes sur un Pi : c'est normal. À la fin, le message « Terminé / Done ! » s'affiche.</p>
+
+<h3>6. Mots de passe : où vont-ils ?</h3>
+<ul>
+  <li><b>Jamais en clair</b> sur le disque, dans un script, dans une unité systemd ni sur une ligne de commande visible dans <code>ps</code>.</li>
+  <li>Le mot de passe de la capsule est chiffré par <code>systemd-creds</code> et déchiffré <b>en mémoire seulement</b>, pour le service de montage. Il est transmis au client AFP par l'entrée standard.</li>
+  <li>Samba ne conserve qu'une empreinte du mot de passe (comportement normal).</li>
+  <li><b>Limite honnête :</b> sur un Pi (sans puce TPM), la clé de chiffrement est sur la même carte SD. Cela protège des lectures accidentelles, copies de fichiers et captures d'écran, pas d'un attaquant qui aurait la carte <i>et</i> les droits root. Le mode « mémoire seulement » existe pour qui n'accepte pas ce compromis.</li>
+  <li>Changer le mot de passe : <code>sudo timecapsule-ctl set-password</code>. Changer l'utilisateur AFP : <code>sudo timecapsule-ctl set-user NOM</code>.</li>
+</ul>
+
+<h3>7. Configurer Time Machine sur le Mac</h3>
+<ol>
+  <li>Réglages Système › Général › Time Machine › bouton <b>+</b>.</li>
+  <li>Choisissez <b>TimeMachine</b> sur <code>raspberrypi.local</code> (le nom de votre Pi).</li>
+  <li>Entrez l'utilisateur et le mot de passe <b>Samba</b>.</li>
+</ol>
+<div class="warn"><b>Une seule destination.</b> Si la capsule figure aussi comme destination directe (AFP), Time Machine y écrira dans le même fichier de sauvegarde. Avec macOS 27 cette destination disparaîtra de toute façon : gardez uniquement celle du Pi.</div>
+
+<h3>8. Protections et journaux</h3>
+<table>
+  <tr><th>Couche</th><th>Rôle</th><th>Fréquence</th></tr>
+  <tr><td>1. Keepalive TCP noyau</td><td>Détecte une connexion morte en ≈ 2 min</td><td>permanent</td></tr>
+  <tr><td>2. Keepalive AFP + sonde</td><td>Garde la session active, mesure l'état complet</td><td>chaque minute</td></tr>
+  <tr><td>3. Watchdog</td><td>Sauve un dossier d'incident, coupe Samba, débloque, remonte, vérifie, relance Samba</td><td>chaque minute</td></tr>
+</table>
+<p>Ces tâches sont des <b>timers systemd</b> (et non cron) : ils ne se chevauchent jamais, sont tués après un délai, et ne peuvent pas s'empiler. Samba ne démarre que si la capsule est montée. Une panne simulée (client AFP tué) est réparée en ≈ 80 secondes.</p>
+<pre><code>sudo timecapsule-ctl status      # état, depuis quand, derniers événements
+sudo timecapsule-ctl report      # historique : durées connecté, causes, ce qui a changé
+sudo timecapsule-ctl logs -f     # journal en direct
+sudo timecapsule-ctl incidents   # dossiers d'incident
+sudo timecapsule-ctl audit       # vérifications de sécurité</code></pre>
+<p>À chaque changement d'état, le journal (<code>/var/log/timecapsule/events.log</code>) garde : la <b>durée de l'état précédent</b> (donc combien de temps la connexion a tenu), les <b>causes</b>, les <b>champs qui ont changé</b> et les instantanés <b>avant / après</b> (montage, latence, capsule, client AFP, Samba, réseau, charge, espace libre…).</p>
+
+<h3>9. Dépannage</h3>
+<table>
+  <tr><th>Symptôme</th><th>Solution</th></tr>
+  <tr><td>Montage figé / « Transport endpoint not connected »</td><td>Le watchdog répare en 1 à 2 min. À la main : <code>sudo timecapsule-ctl clean &amp;&amp; sudo timecapsule-ctl mount</code></td></tr>
+  <tr><td><code>Authentication failed</code></td><td>Mauvais mot de passe <b>ou utilisateur AFP manquant</b>. Test au clavier : <code>sudo timecapsule-ctl mount-test NOM</code>, puis <code>set-user</code> et <code>set-password</code>. Le watchdog n'insiste pas tant que vous n'avez pas ressaisi.</td></tr>
+  <tr><td>Rien n'est monté après un redémarrage</td><td>Vous avez choisi « mémoire seulement » : <code>sudo timecapsule-ctl mount</code></td></tr>
+  <tr><td>Time Machine ne voit pas le Pi</td><td><code>sudo systemctl restart avahi-daemon smbd</code> ; sur le Mac, retirez le disque (−) et ajoutez-le (+)</td></tr>
+  <tr><td>« Disque plein » côté Time Machine</td><td>Libérez de la place sur la capsule : Time Machine exige 100 Go libres</td></tr>
+  <tr><td><code>recovery_suspended</code> dans le journal</td><td>6 réparations échouées en 1 h : capsule éteinte ou injoignable ? Voir le dernier fichier de <code>/var/log/timecapsule/incidents/</code></td></tr>
+</table>
+<p>Sur le Mac, <code>bash tools/mac-timemachine-report.sh</code> (dans le dépôt) résume les destinations Time Machine et regroupe ses erreurs récentes.</p>
+
+<h3>10. Mettre à jour, désinstaller</h3>
+<p><b>Mettre à jour :</b> relancez simplement l'installateur (nouveau zip ou <code>git pull</code> puis <code>sudo bash install.sh</code>) : il est sans danger à relancer.</p>
+<p><b>Désinstaller :</b></p>
+<pre><code>sudo systemctl disable --now timecapsule-keepalive.timer timecapsule-watchdog.timer timecapsule-mount.service
+sudo rm -rf /etc/systemd/system/timecapsule-* /etc/systemd/system/smbd.service.d/timecapsule.conf \
+  /etc/timecapsule /usr/local/lib/timecapsule /usr/local/bin/timecapsule-* /usr/local/bin/tc-ctl
+sudo systemctl daemon-reload</code></pre>
+<p>Puis supprimez les deux lignes <code>include = /etc/samba/timecapsule-…</code> de <code>/etc/samba/smb.conf</code> (une sauvegarde <code>smb.conf.pre-timecapsule</code> existe) et redémarrez Samba.</p>
+
+<h3>11. À savoir</h3>
+<ul>
+  <li>La <b>première sauvegarde est très longue</b> (plusieurs jours : ≈ 9 Go/h mesurés, car tout passe par le pont AFP/FUSE). Les suivantes sont rapides.</li>
+  <li>Gardez <b>100 Go libres</b> sur la capsule, et réglez une taille maximale inférieure à celle du disque.</li>
+  <li>Le Pi doit être en <b>Ethernet</b>. Si vous gardez aussi le Wi-Fi actif, notez que le Pi aura deux adresses.</li>
+  <li>Si un assistant IA vous guide, <b>ne lui donnez jamais vos mots de passe</b> : saisissez-les vous-même.</li>
+</ul>
+
+<!-- ===================================== ENGLISH ===================================== -->
+<div class="lang"></div>
+<h2>ENGLISH</h2>
+
+<h3>1. What you need</h3>
+<ul>
+  <li>A <b>Raspberry Pi 4</b> (2 GB RAM or more), its power supply, a microSD card and an <b>Ethernet cable</b> to your router (Wi-Fi is not stable enough for this role).</li>
+  <li>Your <b>Time Capsule</b>, plugged into the router with Ethernet.</li>
+  <li>A Mac or a Windows PC to run the installation.</li>
+  <li>The Time Capsule <b>disk password</b>.</li>
+</ul>
+
+<h3>2. Prepare the Raspberry Pi</h3>
+<ol>
+  <li>Install <b>Raspberry Pi Imager</b> (raspberrypi.com/software) on your computer.</li>
+  <li>Pick <b>Raspberry Pi OS Lite (64-bit)</b>, then the advanced settings (gear icon): <b>enable SSH</b> and choose a <b>username</b> and password.</li>
+  <li>Write the card, put it in the Pi, plug in <b>Ethernet</b> then power. Wait 2 minutes.</li>
+</ol>
+<p>The Pi is usually reachable as <code>raspberrypi.local</code>. Otherwise find its IP address in your router's interface.</p>
+
+<h3>3. Prepare the Time Capsule</h3>
+<ol>
+  <li>In <b>AirPort Utility</b> (Mac, iPhone or iPad): select the capsule › Edit › <b>Disks</b> tab.</li>
+  <li><b>Rename the disk without spaces</b> (e.g. <code>AirPortTimeCapsule</code>): the AFP client cannot handle spaces. Click Update (≈ 2 min).</li>
+  <li>Note the <b>disk password</b> and the capsule's <b>IP address</b>.</li>
+</ol>
+<div class="note"><b>AFP username.</b> Depending on its settings, the capsule may require a username as well as the password. To find it: on a Mac that already connects to it, open <b>Keychain Access</b>, search for your capsule's name and read the <b>Account</b> field. If your capsule does not ask for one, leave it empty.</div>
+
+<h3>4. One-click install</h3>
+<p>Download the zip for your computer from the project's GitHub page (<code>installers</code> folder):</p>
+<table>
+  <tr><th>Computer</th><th>File</th><th>Run</th></tr>
+  <tr><td>Mac</td><td><code>TimeCapsule-Bridge-macOS.zip</code></td><td>Unzip, double-click <code>Installer-macOS.command</code></td></tr>
+  <tr><td>Windows 10/11</td><td><code>TimeCapsule-Bridge-Windows.zip</code></td><td>Right-click › Extract All, double-click <code>Installer-Windows.bat</code></td></tr>
+</table>
+<p>macOS or Windows may warn that the file is unsigned: on Mac, right-click › Open › Open (or System Settings › Privacy &amp; Security › "Open Anyway"); on Windows, "More info" › "Run anyway".</p>
+<p>The launcher asks for the Pi's address and username, copies the project to the Pi, then runs the installer remotely. <b>The Pi asks for its own password</b> (nothing is shown while you type); the launcher never sees it.</p>
+<h3>Alternative: command line</h3>
+<pre><code>ssh your_username@raspberrypi.local
+sudo apt update &amp;&amp; sudo apt install -y git
+git clone https://github.com/DevTipsy/timecapsule-rpi-bridge.git
+cd timecapsule-rpi-bridge &amp;&amp; sudo bash install.sh</code></pre>
+
+<h3>5. The installer's questions</h3>
+<table>
+  <tr><th>Question</th><th>Answer</th></tr>
+  <tr><td>Time Capsule IP</td><td>e.g. <code>192.168.1.15</code></td></tr>
+  <tr><td>Volume name (no spaces)</td><td>e.g. <code>AirPortTimeCapsule</code></td></tr>
+  <tr><td>Samba username</td><td>an existing Pi user (the one from step 2)</td></tr>
+  <tr><td>Capsule AFP username</td><td>empty in most cases, otherwise the Keychain "Account" field</td></tr>
+  <tr><td>Maximum backup size</td><td>keep <code>-</code> (unlimited), or a bit less than the disk size (e.g. <code>1500G</code>)</td></tr>
+  <tr><td>Remember the capsule password?</td><td><b>Yes</b> (recommended): encrypted, automatic re-mount after an outage. <b>No</b>: RAM only, to retype after a reboot.</td></tr>
+  <tr><td>Capsule disk password</td><td>typed twice, hidden</td></tr>
+  <tr><td>Samba password</td><td>the one you will type on the Mac (typed directly into <code>smbpasswd</code>)</td></tr>
+</table>
+<p>Building the AFP client takes 10 to 30 minutes on a Pi: this is normal. At the end, "Terminé / Done!" is displayed.</p>
+
+<h3>6. Passwords: where do they go?</h3>
+<ul>
+  <li><b>Never in clear text</b> on disk, in a script, in a systemd unit or on a command line visible in <code>ps</code>.</li>
+  <li>The capsule password is encrypted by <code>systemd-creds</code> and decrypted <b>in memory only</b>, for the mount service. It is handed to the AFP client through standard input.</li>
+  <li>Samba only keeps a hash of its password (normal behaviour).</li>
+  <li><b>Honest limit:</b> on a Pi (no TPM chip) the encryption key lives on the same SD card. It protects against accidental reads, file copies and screenshots, not against an attacker holding the card <i>and</i> root. The "RAM only" mode exists for anyone who cannot accept this trade-off.</li>
+  <li>Change the password: <code>sudo timecapsule-ctl set-password</code>. Change the AFP username: <code>sudo timecapsule-ctl set-user NAME</code>.</li>
+</ul>
+
+<h3>7. Set up Time Machine on the Mac</h3>
+<ol>
+  <li>System Settings › General › Time Machine › <b>+</b> button.</li>
+  <li>Pick <b>TimeMachine</b> on <code>raspberrypi.local</code> (your Pi's name).</li>
+  <li>Enter the <b>Samba</b> username and password.</li>
+</ol>
+<div class="warn"><b>One destination only.</b> If the capsule is also listed as a direct (AFP) destination, Time Machine will write to the same backup file through two paths. With macOS 27 that destination goes away anyway: keep only the Pi's.</div>
+
+<h3>8. Protection and logs</h3>
+<table>
+  <tr><th>Layer</th><th>Role</th><th>Frequency</th></tr>
+  <tr><td>1. Kernel TCP keepalive</td><td>Detects a dead connection in ≈ 2 min</td><td>permanent</td></tr>
+  <tr><td>2. AFP keepalive + probe</td><td>Keeps the session alive, records the full state</td><td>every minute</td></tr>
+  <tr><td>3. Watchdog</td><td>Saves an incident report, stops Samba, unblocks, re-mounts, verifies, restarts Samba</td><td>every minute</td></tr>
+</table>
+<p>These jobs are <b>systemd timers</b> (not cron): they never overlap, are killed after a timeout, and cannot pile up. Samba only starts when the capsule is mounted. A simulated crash (AFP client killed) is repaired in ≈ 80 seconds.</p>
+<pre><code>sudo timecapsule-ctl status      # state, since when, latest events
+sudo timecapsule-ctl report      # history: connected durations, causes, what changed
+sudo timecapsule-ctl logs -f     # live log
+sudo timecapsule-ctl incidents   # incident reports
+sudo timecapsule-ctl audit       # security checks</code></pre>
+<p>At every state change the log (<code>/var/log/timecapsule/events.log</code>) keeps: the <b>duration of the previous state</b> (how long the connection held), the <b>causes</b>, the <b>fields that changed</b> and the <b>before / after</b> snapshots (mount, latency, capsule, AFP client, Samba, network, load, free space…).</p>
+
+<h3>9. Troubleshooting</h3>
+<table>
+  <tr><th>Symptom</th><th>Fix</th></tr>
+  <tr><td>Frozen mount / "Transport endpoint not connected"</td><td>The watchdog fixes it within 1–2 min. By hand: <code>sudo timecapsule-ctl clean &amp;&amp; sudo timecapsule-ctl mount</code></td></tr>
+  <tr><td><code>Authentication failed</code></td><td>Wrong password <b>or missing AFP username</b>. Keyboard test: <code>sudo timecapsule-ctl mount-test NAME</code>, then <code>set-user</code> and <code>set-password</code>. The watchdog stops retrying until you retype it.</td></tr>
+  <tr><td>Nothing mounted after a reboot</td><td>You chose "RAM only": <code>sudo timecapsule-ctl mount</code></td></tr>
+  <tr><td>Time Machine can't see the Pi</td><td><code>sudo systemctl restart avahi-daemon smbd</code>; on the Mac remove the disk (−) and add it back (+)</td></tr>
+  <tr><td>"Disk full" in Time Machine</td><td>Free space on the capsule: Time Machine needs 100 GB free</td></tr>
+  <tr><td><code>recovery_suspended</code> in the log</td><td>6 failed repairs in an hour: capsule off or unreachable? See the latest file in <code>/var/log/timecapsule/incidents/</code></td></tr>
+</table>
+<p>On the Mac, <code>bash tools/mac-timemachine-report.sh</code> (in the repository) summarises the Time Machine destinations and groups its recent errors.</p>
+
+<h3>10. Update, uninstall</h3>
+<p><b>Update:</b> simply run the installer again (new zip, or <code>git pull</code> then <code>sudo bash install.sh</code>): it is safe to re-run.</p>
+<p><b>Uninstall:</b></p>
+<pre><code>sudo systemctl disable --now timecapsule-keepalive.timer timecapsule-watchdog.timer timecapsule-mount.service
+sudo rm -rf /etc/systemd/system/timecapsule-* /etc/systemd/system/smbd.service.d/timecapsule.conf \
+  /etc/timecapsule /usr/local/lib/timecapsule /usr/local/bin/timecapsule-* /usr/local/bin/tc-ctl
+sudo systemctl daemon-reload</code></pre>
+<p>Then remove the two <code>include = /etc/samba/timecapsule-…</code> lines from <code>/etc/samba/smb.conf</code> (a <code>smb.conf.pre-timecapsule</code> backup exists) and restart Samba.</p>
+
+<h3>11. Good to know</h3>
+<ul>
+  <li>The <b>first backup is very slow</b> (days: ≈ 9 GB/h measured, since everything goes through the AFP/FUSE bridge). Later ones are fast.</li>
+  <li>Keep <b>100 GB free</b> on the capsule, and set a maximum size below the disk size.</li>
+  <li>The Pi must be on <b>Ethernet</b>. If you also keep Wi-Fi on, the Pi will have two addresses.</li>
+  <li>If an AI assistant guides you, <b>never give it your passwords</b>: type them yourself.</li>
+</ul>
+
+
+</body></html>

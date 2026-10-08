@@ -1,0 +1,7 @@
+* text=auto
+*.sh text eol=lf
+*.command text eol=lf
+install.sh text eol=lf
+scripts/* text eol=lf
+*.zip binary
+*.pdf binary

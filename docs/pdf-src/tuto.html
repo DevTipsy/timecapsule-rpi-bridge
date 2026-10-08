@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Guide complet débutant : Raspberry Pi serveur maison</title><link rel="stylesheet" href="style.css"></head><body>
+
+<div class="cover">
+  <h1>Raspberry Pi : serveur maison</h1>
+  <p class="sub">Guide complet débutant · Pi-hole · VPN WireGuard · DuckDNS · AnyDesk · Time Machine (pont AFP → SMB)</p>
+  <table class="meta">
+    <tr><td>Auteur</td><td>Tipsy</td></tr>
+    <tr><td>Version</td><td>2 (octobre 2026) : Time Machine avec surveillance et mots de passe chiffrés, sécurité renforcée</td></tr>
+    <tr><td>Matériel</td><td>Raspberry Pi 4 (2 Go de RAM minimum), en Ethernet</td></tr>
+    <tr><td>Système</td><td>Raspberry Pi OS Lite 64 bits (Debian Trixie)</td></tr>
+    <tr><td>Difficulté</td><td>Débutant à intermédiaire</td></tr>
+  </table>
+</div>
+
+<div class="note"><b>Vocabulaire.</b>
+<b>Terminal</b> : application pour taper des commandes (Mac : Applications › Utilitaires › Terminal ; Windows : PowerShell).
+<b>SSH</b> : connexion à distance au Pi depuis le Terminal.
+<b>sudo</b> : exécute une commande en administrateur.
+<b>nano</b> : éditeur de texte du Terminal (enregistrer = <kbd>Ctrl</kbd>+<kbd>O</kbd> puis Entrée, quitter = <kbd>Ctrl</kbd>+<kbd>X</kbd>).</div>
+
+<div class="toc">
+  <div>1. Prérequis</div><div>2. Installer Raspberry Pi OS</div><div>3. Se connecter en SSH</div><div>4. Pi-hole : bloqueur de pubs</div>
+  <div>5. WireGuard : VPN sécurisé</div><div>6. DuckDNS : DNS dynamique</div><div>7. AnyDesk : contrôle du Mac à distance</div><div>8. Wake-on-LAN</div>
+  <div>9. Time Machine via le Pi</div><div>10. Sécurité</div><div>11. Fichiers depuis l'iPhone en 4G/5G</div><div>12. Dépannage et commandes utiles</div>
+</div>
+
+<h2>1. Prérequis</h2>
+<table>
+  <tr><td>Raspberry Pi 4</td><td>2 Go de RAM ou plus, boîtier, alimentation, carte microSD</td></tr>
+  <tr><td>Câble Ethernet</td><td>Pour relier le Pi à la box (le Wi-Fi est déconseillé pour un serveur)</td></tr>
+  <tr><td>Apple Time Capsule</td><td>Reliée en Ethernet à la box</td></tr>
+  <tr><td>Box internet</td><td>Avec accès à son interface d'administration</td></tr>
+  <tr><td>Mac</td><td>macOS Big Sur ou plus récent (un PC Windows 10/11 convient pour piloter le Pi)</td></tr>
+  <tr><td>iPhone / iPad</td><td>Pour le VPN et l'accès à distance</td></tr>
+  <tr><td>Comptes gratuits</td><td>duckdns.org (nom de domaine dynamique) et anydesk.com (accès à distance)</td></tr>
+</table>
+
+<h2>2. Installer Raspberry Pi OS</h2>
+<ol>
+  <li>Téléchargez <b>Raspberry Pi Imager</b> : raspberrypi.com/software.</li>
+  <li>Choisissez l'OS : <b>Raspberry Pi OS Lite (64-bit)</b>.</li>
+  <li>Réglages avancés (engrenage) : <b>activez SSH</b>, définissez un <b>nom d'utilisateur</b> et un <b>mot de passe</b>.</li>
+  <li>Écrivez sur la carte microSD.</li>
+  <li>Insérez la carte dans le Pi, branchez <b>Ethernet</b> puis l'alimentation. Attendez 2 minutes.</li>
+</ol>
+
+<h2>3. Se connecter en SSH</h2>
+<p>Ouvrez le Terminal (Mac : <kbd>Cmd</kbd>+<kbd>Espace</kbd>, tapez « Terminal » ; Windows : menu Démarrer › PowerShell). Trouvez le Pi :</p>
+<pre><code>ping raspberrypi.local</code></pre>
+<p>(ou lisez son adresse IP dans l'interface de votre box). Connectez-vous :</p>
+<pre><code>ssh votre_utilisateur@raspberrypi.local</code></pre>
+<p>Le mot de passe est invisible quand vous le tapez : c'est normal. Puis mettez le système à jour :</p>
+<pre><code>sudo apt update &amp;&amp; sudo apt full-upgrade -y</code></pre>
+
+<h2>4. Pi-hole : bloqueur de pubs</h2>
+<pre><code>curl -sSL https://install.pi-hole.net | bash</code></pre>
+<p>Suivez l'assistant et <b>notez le mot de passe de l'interface</b>. Pour filtrer tout le réseau, dans l'interface de votre box (ex. <code>http://192.168.1.254</code> pour une Bbox) › DHCP, remplacez le DNS principal par l'IP du Pi. Interface de Pi-hole : <code>http://IP_DU_PI/admin</code>.</p>
+<div class="warn"><b>Seuls les appareils qui utilisent le Pi comme DNS sont filtrés.</b> Si vous ne changez pas le DNS de la box, vos appareils à la maison continuent d'utiliser celui de la box et ne sont pas filtrés ; seuls ceux qui passent par le VPN du Pi le sont. Si le Pi est éteint, un réseau configuré ainsi n'a plus de DNS.</div>
+<div class="warn"><b>Pi-hole ne se met pas à jour tout seul.</b> Il rafraîchit ses listes de pubs chaque semaine et vérifie chaque jour si une version existe, mais ne l'installe pas. De temps en temps :
+<pre><code>sudo pihole -up
+sudo pihole reloadlists
+dig @127.0.0.1 doubleclick.net +short        # doit afficher 0.0.0.0</code></pre>
+Le <code>reloadlists</code> est important : après une mise à jour, le blocage peut rester inactif tant que les listes ne sont pas rechargées.</div>
+
+<h2>5. WireGuard : VPN sécurisé</h2>
+<pre><code>curl -L https://install.pivpn.io | bash</code></pre>
+<p>Choisissez WireGuard, port 51820. PiVPN peut utiliser Pi-hole comme DNS : c'est ce qui bloque les pubs sur votre téléphone hors de chez vous. Pour atteindre le réseau local depuis le VPN, éditez la configuration :</p>
+<pre><code>sudo nano /etc/wireguard/wg0.conf</code></pre>
+<p>Ajoutez après <code>ListenPort</code> (deux lignes) :</p>
+<pre><code>PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -A FORWARD -o wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -D FORWARD -o wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE</code></pre>
+<p>Remplacez <code>eth0</code> par <code>wlan0</code> si le Pi est en Wi-Fi (vérifiez avec <code>ip route | grep default</code>). Puis, <b>dans la box, redirigez le port 51820 en UDP vers l'IP du Pi</b>, de préférence celle de son <b>Ethernet</b>. Créez un profil pour le téléphone et scannez le QR code avec l'app WireGuard (App Store) :</p>
+<pre><code>pivpn add -n MonTelephone
+pivpn -qr MonTelephone</code></pre>
+<div class="note">Si le Pi a à la fois Ethernet et Wi-Fi, il a deux adresses IP : vérifiez que la redirection de port de la box pointe sur la bonne avant de couper l'une des deux.</div>
+
+<h2>6. DuckDNS : DNS dynamique</h2>
+<p>Votre box change d'adresse publique de temps en temps. DuckDNS associe un nom fixe (<code>votredomaine.duckdns.org</code>) à votre adresse actuelle. Inscrivez-vous sur duckdns.org, choisissez un domaine et notez le <b>jeton</b> (token). Le jeton ne donne accès qu'à vos domaines DuckDNS, mais ne le partagez pas.</p>
+<pre><code>mkdir -p ~/duckdns
+nano ~/duckdns/token          # collez uniquement le jeton, puis enregistrez
+chmod 600 ~/duckdns/token
+nano ~/duckdns/duck.sh</code></pre>
+<p>Contenu de <code>duck.sh</code> (le jeton est lu dans un fichier à part, jamais écrit dans le script) :</p>
+<pre><code>#!/bin/bash
+TOKEN=$(cat ~/duckdns/token)
+echo url="https://www.duckdns.org/update?domains=VOTRE_DOMAINE&amp;token=${TOKEN}&amp;ip=" | curl -s -o ~/duckdns/duck.log -K -</code></pre>
+<pre><code>chmod 700 ~/duckdns/duck.sh
+~/duckdns/duck.sh &amp;&amp; cat ~/duckdns/duck.log     # doit afficher OK</code></pre>
+<p>Automatisez toutes les 5 minutes : <code>crontab -e</code> (choisissez 1 pour nano si on vous le demande) et ajoutez tout en bas :</p>
+<pre><code>*/5 * * * * ~/duckdns/duck.sh &gt;/dev/null 2&gt;&amp;1</code></pre>
+<p>Sur l'iPhone, dans WireGuard, remplacez l'IP par <code>votredomaine.duckdns.org:51820</code>.</p>
+
+<h2>7. AnyDesk : contrôle du Mac à distance</h2>
+<p>Sur le Mac : téléchargez AnyDesk (anydesk.com/download), installez-le, puis accordez les permissions :</p>
+<ul>
+  <li>Réglages › Confidentialité › <b>Accessibilité</b> : ajoutez AnyDesk.</li>
+  <li>Réglages › Confidentialité › <b>Enregistrement de l'écran</b> : ajoutez AnyDesk.</li>
+  <li>AnyDesk › Réglages › Sécurité › <b>définir un mot de passe</b> (accès non surveillé) ; cochez « Démarrer AnyDesk à la connexion » et notez l'ID.</li>
+</ul>
+<p>Sur iPad/iPhone : installez AnyDesk, entrez l'ID et le mot de passe. Sans les permissions macOS, AnyDesk affiche un écran noir.</p>
+
+<h2>8. Wake-on-LAN</h2>
+<p>Nécessite l'Ethernet. Sur le Mac : Réglages › Énergie › <b>Réactiver pour l'accès au réseau</b>. Dans AnyDesk, activez Wake-On-LAN dans les réglages : le Mac se rallume à distance.</p>
+
+<h2>9. Time Machine via le Raspberry Pi</h2>
+<p>La Time Capsule ne partage son disque qu'en AFP, que macOS 27 ne gère plus. Le Pi monte la capsule en AFP et la repartage en SMB : le Mac sauvegarde en SMB à travers le Pi. L'installation complète et le dépannage sont détaillés dans le guide <b>TimeCapsule_RPi_Bridge_Guide_FR_EN.pdf</b> ; voici l'essentiel.</p>
+<ol>
+  <li><b>Time Capsule</b> : dans Utilitaire AirPort, renommez le disque <b>sans espaces</b> (ex. <code>AirPortTimeCapsule</code>) et notez son mot de passe.</li>
+  <li><b>Installer</b> : téléchargez le zip Mac ou Windows depuis la page GitHub du projet (dossier <code>installers</code>) et lancez-le (double-clic), ou, sur le Pi :
+<pre><code>sudo apt install -y git
+git clone https://github.com/DevTipsy/timecapsule-rpi-bridge.git
+cd timecapsule-rpi-bridge &amp;&amp; sudo bash install.sh</code></pre></li>
+  <li><b>Répondre aux questions</b> : IP de la capsule, nom du volume, utilisateur Samba, utilisateur AFP (souvent vide), puis les mots de passe, saisis directement sur le Pi.</li>
+  <li><b>Sur le Mac</b> : Réglages Système › Général › Time Machine › <b>+</b> › choisissez « TimeMachine » sur le Pi, entrez l'utilisateur et le mot de passe Samba.</li>
+</ol>
+<div class="ok"><b>Ce qui change par rapport à la première version de ce guide :</b> plus aucun mot de passe en clair (chiffré par <code>systemd-creds</code>) ; surveillance par timers systemd (au lieu de cron) qui répare le montage tout seul en ≈ 80 s ; journal de chaque panne avec l'état avant/après et la durée de connexion.</div>
+<pre><code>sudo timecapsule-ctl status     # état actuel
+sudo timecapsule-ctl report     # historique des pannes et leurs causes
+sudo timecapsule-ctl logs -f    # journal en direct
+sudo timecapsule-ctl mount      # remonter à la main (demande le mot de passe au terminal)</code></pre>
+<div class="warn"><b>À savoir :</b> la première sauvegarde est très longue (plusieurs jours) ; gardez 100 Go libres sur la capsule ; ne gardez qu'<b>une</b> destination Time Machine pour la capsule (celle du Pi).</div>
+
+<h2>10. Sécurité</h2>
+<h3>Clés SSH (connexion sans mot de passe)</h3>
+<p>Sur chaque Mac :</p>
+<pre><code>ssh-keygen -t ed25519 -C "description@machine"
+ssh-copy-id utilisateur@IP_DU_PI
+ssh utilisateur@IP_DU_PI          # doit se connecter sans mot de passe</code></pre>
+<h3>Interdire ensuite les mots de passe SSH</h3>
+<div class="warn"><b>Gardez une session SSH ouverte pendant toute la manipulation</b>, au cas où il faudrait revenir en arrière.</div>
+<p>Sur Raspberry Pi OS, <code>sshd</code> lit d'abord les fichiers de <code>/etc/ssh/sshd_config.d/</code> et <b>garde la première valeur rencontrée</b>. Ajouter <code>PasswordAuthentication no</code> à la fin de <code>sshd_config</code> est donc souvent <b>sans effet</b>, car un fichier comme <code>50-cloud-init.conf</code> impose <code>yes</code> avant. La bonne méthode : un fichier qui passe en premier.</p>
+<pre><code>sudo bash -c 'printf "PasswordAuthentication no\nPubkeyAuthentication yes\n" &gt; /etc/ssh/sshd_config.d/00-keys-only.conf'
+sudo sshd -t &amp;&amp; sudo systemctl restart ssh
+sudo sshd -T | grep -E "passwordauthentication|pubkeyauthentication"     # doit afficher "no" puis "yes"</code></pre>
+<h3>Autres bonnes pratiques</h3>
+<ul>
+  <li><b>Mises à jour</b> : <code>sudo apt update &amp;&amp; sudo apt full-upgrade</code> régulièrement ; <code>sudo pihole -up</code> pour Pi-hole.</li>
+  <li><b>Ne laissez ouvert que ce qui sert</b> : <code>sudo ss -tulnp</code> liste les ports en écoute ; désactivez ce que vous n'utilisez pas (ex. un serveur AFP, un serveur d'impression, un bureau distant).</li>
+  <li><b>Aucun mot de passe en clair</b> dans un script ou une commande : saisissez-les au clavier ou utilisez un fichier en <code>chmod 600</code>. Si un mot de passe a été exposé, changez-le.</li>
+  <li><code>sudo timecapsule-ctl audit</code> vérifie les mots de passe en clair, les permissions, SSH, les ports ouverts et les mises à jour en attente.</li>
+</ul>
+
+<h2>11. Accès aux fichiers depuis l'iPhone en 4G/5G</h2>
+<ol>
+  <li>Activez le VPN WireGuard.</li>
+  <li>App Fichiers › ⋯ › <b>Se connecter au serveur</b>.</li>
+  <li>Entrez <code>smb://IP_DU_PI/TimeMachine</code>.</li>
+  <li>Utilisateur et mot de passe <b>Samba</b>.</li>
+</ol>
+
+<h2>12. Dépannage et commandes utiles</h2>
+<table>
+  <tr><th>Problème</th><th>Solution</th></tr>
+  <tr><td>Montage figé</td><td>Le watchdog répare en 1 à 2 min. À la main : <code>sudo timecapsule-ctl clean &amp;&amp; sudo timecapsule-ctl mount</code></td></tr>
+  <tr><td><code>Authentication failed</code></td><td>Mauvais mot de passe ou utilisateur AFP manquant : <code>sudo timecapsule-ctl mount-test NOM</code>, puis <code>set-user</code> et <code>set-password</code></td></tr>
+  <tr><td>Time Machine ne voit pas le Pi</td><td><code>sudo systemctl restart avahi-daemon smbd</code> ; sur le Mac, retirez le disque (−) et ajoutez-le (+)</td></tr>
+  <tr><td>Pubs non bloquées après mise à jour</td><td><code>sudo pihole reloadlists</code></td></tr>
+  <tr><td>VPN inaccessible depuis l'extérieur</td><td>Vérifiez la redirection UDP 51820 de la box vers l'IP du Pi (Ethernet) et <code>sudo wg show</code></td></tr>
+</table>
+<table>
+  <tr><th>Action</th><th>Commande</th></tr>
+  <tr><td>État du VPN</td><td><code>sudo wg show</code></td></tr>
+  <tr><td>État de Samba</td><td><code>sudo smbstatus</code></td></tr>
+  <tr><td>État du pont Time Capsule</td><td><code>sudo timecapsule-ctl status</code></td></tr>
+  <tr><td>Historique des pannes</td><td><code>sudo timecapsule-ctl report</code></td></tr>
+  <tr><td>Redémarrer WireGuard / Samba</td><td><code>sudo systemctl restart wg-quick@wg0</code> / <code>sudo systemctl restart smbd</code></td></tr>
+  <tr><td>Mettre à jour Pi-hole</td><td><code>sudo pihole -up &amp;&amp; sudo pihole reloadlists</code></td></tr>
+  <tr><td>Mettre à jour le système</td><td><code>sudo apt update &amp;&amp; sudo apt full-upgrade</code></td></tr>
+  <tr><td>Redémarrer le Pi</td><td><code>sudo reboot</code></td></tr>
+</table>
+<p class="small">Testé sur Raspberry Pi 4 (2 Go), Raspberry Pi OS Lite 64 bits (Debian Trixie), macOS Tahoe. Ethernet recommandé. Code et installateurs : github.com/DevTipsy/timecapsule-rpi-bridge</p>
+</body></html>

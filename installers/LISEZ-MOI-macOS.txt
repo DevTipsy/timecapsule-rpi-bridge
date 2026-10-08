@@ -1,0 +1,42 @@
+TIME CAPSULE + RASPBERRY PI : INSTALLATION DEPUIS UN MAC / INSTALL FROM A MAC
+==============================================================================
+
+FRANCAIS
+--------
+1. Preparez le Raspberry Pi : avec "Raspberry Pi Imager", installez "Raspberry Pi OS Lite (64-bit)",
+   activez SSH et choisissez un nom d'utilisateur + un mot de passe. Branchez le Pi en ETHERNET.
+2. Dans Utilitaire AirPort (Mac, iPhone ou iPad), renommez le disque de la Time Capsule SANS espaces
+   (ex : AirPortTimeCapsule) et notez son mot de passe.
+3. Decompressez ce zip (double-clic).
+4. Double-cliquez "Installer-macOS.command".
+   Si macOS refuse de l'ouvrir ("developpeur non identifie") :
+     - clic droit sur le fichier > Ouvrir > Ouvrir, ou
+     - Reglages Systeme > Confidentialite et securite > "Ouvrir quand meme", ou
+     - ouvrez l'app Terminal, tapez "bash " puis glissez le fichier dans la fenetre, puis Entree.
+5. Indiquez l'adresse du Pi (Entree = raspberrypi.local) et son nom d'utilisateur.
+   Le mot de passe du Pi vous est demande par le Pi lui-meme (rien ne s'affiche quand vous tapez).
+6. Repondez aux questions (IP de la capsule, nom du volume, ...). Les mots de passe sont saisis
+   directement sur le Pi et ne sont JAMAIS ecrits en clair.
+7. Quand "Termine / Done" s'affiche : Reglages Systeme > General > Time Machine > + >
+   choisissez "TimeMachine" sur le Pi.
+
+Probleme ? Guide complet et depannage : https://github.com/DevTipsy/timecapsule-rpi-bridge
+
+ENGLISH
+-------
+1. Prepare the Raspberry Pi: with "Raspberry Pi Imager" install "Raspberry Pi OS Lite (64-bit)",
+   enable SSH and set a username + password. Plug the Pi in with ETHERNET.
+2. In AirPort Utility (Mac, iPhone or iPad), rename the Time Capsule disk WITHOUT spaces
+   (e.g. AirPortTimeCapsule) and note its password.
+3. Unzip this archive (double-click).
+4. Double-click "Installer-macOS.command".
+   If macOS refuses to open it ("unidentified developer"): right-click > Open > Open, or
+   System Settings > Privacy & Security > "Open Anyway", or open Terminal, type "bash ",
+   drag the file into the window, press Return.
+5. Enter the Pi address (Return = raspberrypi.local) and its username. The Pi itself asks for
+   its password (nothing is shown while typing).
+6. Answer the questions (capsule IP, volume name, ...). Passwords are typed directly on the Pi
+   and are NEVER stored in clear text.
+7. When "Done" appears: System Settings > General > Time Machine > + > pick "TimeMachine" on the Pi.
+
+Help: https://github.com/DevTipsy/timecapsule-rpi-bridge

@@ -14,10 +14,31 @@ Mac (Time Machine / SMB) ──> Raspberry Pi (Samba) ──> Time Capsule (AFP)
                            /mnt/timecapsule
 ```
 
+## Easy install for beginners / Installation facile pour les débutants
+
+No command line needed: download the zip for your computer, unzip it, and double-click the installer. It copies the project to your Raspberry Pi and runs the setup there. **The Pi asks for its own passwords; the installer never sees them.**
+
+Pas de ligne de commande : téléchargez le zip de votre ordinateur, décompressez-le et double-cliquez sur l'installateur. Il copie le projet sur votre Raspberry Pi et lance l'installation. **Les mots de passe sont demandés par le Pi lui-même ; l'installateur ne les voit jamais.**
+
+| Your computer / Votre ordinateur | Download / Téléchargement | Then / Ensuite |
+|---|---|---|
+| **Mac** | [TimeCapsule-Bridge-macOS.zip](https://github.com/DevTipsy/timecapsule-rpi-bridge/raw/main/installers/TimeCapsule-Bridge-macOS.zip) | Unzip, double-click `Installer-macOS.command` |
+| **Windows 10 / 11** | [TimeCapsule-Bridge-Windows.zip](https://github.com/DevTipsy/timecapsule-rpi-bridge/raw/main/installers/TimeCapsule-Bridge-Windows.zip) | Right-click › Extract All, double-click `Installer-Windows.bat` |
+
+Before you start / Avant de commencer:
+
+1. **Raspberry Pi**: install *Raspberry Pi OS Lite (64-bit)* with [Raspberry Pi Imager](https://www.raspberrypi.com/software/), enable **SSH**, choose a username and password, plug it in with **Ethernet**.
+2. **Time Capsule**: in AirPort Utility, rename the disk **without spaces** (e.g. `AirPortTimeCapsule`) and note its disk password (and the capsule IP).
+3. Run the installer, answer the questions (capsule IP, volume name, ...), then add the share in *System Settings > General > Time Machine > +*.
+
+macOS or Windows may warn that the installer is unsigned. Mac: right-click › Open › Open (or *System Settings > Privacy & Security > Open Anyway*). Windows: *More info* › *Run anyway*. The Windows installer needs the built-in "OpenSSH Client" (installed by default on Windows 10/11). Detailed step-by-step instructions: see the PDFs below. A `LISEZ-MOI.txt` (FR/EN) is included in each zip. On the first connection the installer automatically trusts the Pi's SSH host key (`StrictHostKeyChecking=accept-new`), which is fine on your home network.
+
+> The installers are plain scripts you can read before running: [`installers/macos/Installer-macOS.command`](installers/macos/Installer-macOS.command), [`installers/windows/Installer-Windows.ps1`](installers/windows/Installer-Windows.ps1). They only copy this project to the Pi and run `install.sh` there over SSH. Rebuild the zips after changing the project with `bash tools/build-installers.sh`.
+
 ## Downloads / Téléchargements
 
-- **[TimeCapsule_RPi_Bridge_Guide_FR_EN.pdf](TimeCapsule_RPi_Bridge_Guide_FR_EN.pdf)** — Time Capsule bridge tutorial (French + English)
-- **[Tuto_Raspberry_Pi_Serveur_Maison.pdf](Tuto_Raspberry_Pi_Serveur_Maison.pdf)** — Complete home server tutorial in French (Pi-hole, WireGuard VPN, DuckDNS, AnyDesk, Wake-on-LAN, Time Machine, SSH keys)
+- **[TimeCapsule_RPi_Bridge_Guide_FR_EN.pdf](TimeCapsule_RPi_Bridge_Guide_FR_EN.pdf)** — Time Capsule bridge guide, version 2: one-click install, monitoring, logs, encrypted passwords (French + English)
+- **[Tuto_Raspberry_Pi_Serveur_Maison.pdf](Tuto_Raspberry_Pi_Serveur_Maison.pdf)** — Complete home server tutorial in French, version 2 (Pi-hole, WireGuard VPN, DuckDNS, AnyDesk, Wake-on-LAN, Time Machine, SSH hardening)
 
 ## Quick Install / Installation rapide
 
@@ -168,9 +189,17 @@ configs/
   avahi-timecapsule.service        Bonjour advertisement for Time Machine
   99-timecapsule-keepalive.conf    Layer 1 sysctl
   journald-persistent.conf, timecapsule.logrotate, timecapsule-tmpfiles.conf   Logs
-tools/mac-timemachine-report.sh    Run on the Mac: Time Machine destinations and errors
+installers/
+  TimeCapsule-Bridge-macOS.zip      Beginner installer for Mac (double-click)
+  TimeCapsule-Bridge-Windows.zip    Beginner installer for Windows (double-click)
+  macos/, windows/                  Sources of the launchers (zips are built from these)
+tools/
+  mac-timemachine-report.sh        Run on the Mac: Time Machine destinations and errors
+  build-installers.sh              Rebuild the installer zips
+  build-pdfs.sh                    Rebuild the PDFs from docs/pdf-src/ (needs Google Chrome)
 docs/POSTMORTEM.md                 Why backups stopped after a few weeks
-*.pdf                              Full written tutorials (written for the first, cron-based version)
+docs/pdf-src/                      HTML sources of the PDFs
+*.pdf                              Written guides (FR/EN), version 2
 ```
 
 The installer includes the Samba files from `/etc/samba/timecapsule-*.conf` instead of rewriting `smb.conf`, so you can remove the bridge by deleting the two `include` lines.

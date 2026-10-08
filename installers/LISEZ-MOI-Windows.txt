@@ -1,0 +1,44 @@
+TIME CAPSULE + RASPBERRY PI : INSTALLATION DEPUIS WINDOWS / INSTALL FROM WINDOWS
+==============================================================================
+
+FRANCAIS
+--------
+1. Preparez le Raspberry Pi : avec "Raspberry Pi Imager", installez "Raspberry Pi OS Lite (64-bit)",
+   activez SSH et choisissez un nom d'utilisateur + un mot de passe. Branchez le Pi en ETHERNET.
+2. Dans Utilitaire AirPort (sur un Mac, iPhone ou iPad), renommez le disque de la Time Capsule
+   SANS espaces (ex : AirPortTimeCapsule) et notez son mot de passe.
+3. Decompressez ce zip : clic droit > "Extraire tout..." (ne lancez pas depuis l'apercu du zip).
+4. Double-cliquez "Installer-Windows.bat".
+   Si Windows affiche "Windows a protege votre PC" : cliquez "Informations complementaires" puis
+   "Executer quand meme".
+5. Indiquez l'adresse du Pi (Entree = raspberrypi.local ; sinon son adresse IP, visible dans
+   l'interface de votre box) et son nom d'utilisateur. Le Pi demande lui-meme son mot de passe
+   (rien ne s'affiche quand vous tapez ; il est demande deux fois, c'est normal).
+6. Repondez aux questions (IP de la capsule, nom du volume, ...). Les mots de passe sont saisis
+   directement sur le Pi et ne sont JAMAIS ecrits en clair.
+7. Quand "Termine / Done" s'affiche : sur le Mac, Reglages Systeme > General > Time Machine > +
+   > choisissez "TimeMachine" sur le Pi.
+
+Si l'outil "ssh" est introuvable : Parametres > Systeme > Fonctionnalites facultatives >
+Ajouter une fonctionnalite > "Client OpenSSH".
+
+Probleme ? Guide complet et depannage : https://github.com/DevTipsy/timecapsule-rpi-bridge
+
+ENGLISH
+-------
+1. Prepare the Raspberry Pi: with "Raspberry Pi Imager" install "Raspberry Pi OS Lite (64-bit)",
+   enable SSH and set a username + password. Plug the Pi in with ETHERNET.
+2. In AirPort Utility (on a Mac, iPhone or iPad), rename the Time Capsule disk WITHOUT spaces
+   (e.g. AirPortTimeCapsule) and note its password.
+3. Unzip this archive: right-click > "Extract All..." (do not run it from inside the zip preview).
+4. Double-click "Installer-Windows.bat". If Windows shows "Windows protected your PC": click
+   "More info" then "Run anyway".
+5. Enter the Pi address (Enter = raspberrypi.local; otherwise its IP address, shown in your router)
+   and its username. The Pi asks for its password itself (nothing is shown; asked twice, normal).
+6. Answer the questions (capsule IP, volume name, ...). Passwords are typed directly on the Pi
+   and are NEVER stored in clear text.
+7. When "Done" appears: on the Mac, System Settings > General > Time Machine > + > pick "TimeMachine".
+
+If "ssh" is not found: Settings > System > Optional features > Add a feature > "OpenSSH Client".
+
+Help: https://github.com/DevTipsy/timecapsule-rpi-bridge
