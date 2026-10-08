@@ -1,0 +1,12 @@
+[Unit]
+Description=Time Capsule keepalive + health probe
+After=timecapsule-mount.service
+
+[Service]
+Type=oneshot
+# Un accès bloqué ne peut plus s'empiler : arrêt forcé du groupe, plafond de processus.
+TimeoutStartSec=50
+KillMode=control-group
+SendSIGKILL=yes
+TasksMax=40
+ExecStart=/usr/local/bin/timecapsule-keepalive.sh

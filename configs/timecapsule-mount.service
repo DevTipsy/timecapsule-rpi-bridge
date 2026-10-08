@@ -1,0 +1,20 @@
+[Unit]
+Description=Mount AirPort Time Capsule via AFP
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=180
+# Le client afpfsd vit dans CE service (et plus dans cron) et ne peut pas
+# saturer le système : plafond de processus + oom.
+TasksMax=128
+# Le mot de passe est injecté par systemd (drop-in créé par `timecapsule-ctl set-password`),
+# déchiffré en mémoire seulement : $CREDENTIALS_DIRECTORY/capsule-password
+ExecStartPre=/bin/sleep 15
+ExecStart=/usr/local/bin/timecapsule-mount.sh mount
+ExecStop=/usr/local/bin/timecapsule-mount.sh unmount
+
+[Install]
+WantedBy=multi-user.target

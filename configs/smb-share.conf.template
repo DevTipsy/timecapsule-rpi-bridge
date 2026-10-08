@@ -1,0 +1,21 @@
+# /etc/samba/timecapsule-share.conf  (inclus en fin de smb.conf)
+[TimeMachine]
+comment = Time Machine Backup
+path = /mnt/timecapsule
+browseable = yes
+read only = no
+valid users = @SMB_USER@
+write list = @SMB_USER@
+force user = root
+force group = root
+admin users = @SMB_USER@
+create mask = 0664
+directory mask = 0775
+inherit permissions = yes
+nt acl support = no
+vfs objects = catia fruit streams_depot
+fruit:metadata = stream
+fruit:encoding = native
+fruit:aapl = yes
+fruit:time machine = yes
+@MAX_SIZE_LINE@

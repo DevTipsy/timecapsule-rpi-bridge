@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+"""Sonde DSI/AFP : se connecte au port 548 et envoie DSIGetStatus (sans session ni mot de passe).
+Affiche en ms le temps de connexion TCP et de réponse. Sortie: 0 = capsule répond, 1 = ne répond pas."""
+import socket, struct, sys, time
+host = sys.argv[1]; timeout = float(sys.argv[2]) if len(sys.argv) > 2 else 5
+t0 = time.time()
+try:
+    s = socket.create_connection((host, 548), timeout=timeout)
+except Exception as e:
+    print(f"tcp=FAIL ({e})"); sys.exit(1)
+t1 = time.time()
+try:
+    s.settimeout(timeout)
+    s.sendall(struct.pack(">BBHIII", 0, 3, 1, 0, 0, 0))          # request, DSIGetStatus, id=1
+    hdr = b""
+    while len(hdr) < 16: 
+        c = s.recv(16 - len(hdr))
+        if not c: raise IOError("fermé")
+        hdr += c
+    flags, cmd, rid, err, length, rsv = struct.unpack(">BBHIII", hdr)
+    body = b""
+    while len(body) < length:
+        c = s.recv(length - len(body))
+        if not c: break
+        body += c
+    t2 = time.time()
+    # FPSrvrInfo: offset machine type (2 octets en 0), puis nom du serveur (Pascal string) en +10 ... on l'extrait si possible
+    name = ""
+    try:
+        off = struct.unpack(">H", body[4:6])[0]  # offset ServerName = après les offsets
+        name = body[10:10+body[10]+1][1:].decode("mac_roman", "replace") if len(body) > 11 else ""
+    except Exception: pass
+    print(f"tcp={int((t1-t0)*1000)}ms dsi_getstatus={int((t2-t1)*1000)}ms bytes={len(body)} err={err} server={name!r}")
+except Exception as e:
+    print(f"tcp={int((t1-t0)*1000)}ms dsi_getstatus=FAIL ({e})"); sys.exit(1)

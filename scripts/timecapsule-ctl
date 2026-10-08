@@ -1,0 +1,174 @@
+#!/bin/bash
+# timecapsule-ctl : outil de contrôle (à lancer avec sudo).
+#
+#   status                 état actuel + depuis combien de temps
+#   report [jours]         historique : périodes connectées, pannes, causes
+#   logs [-f]              journal d'événements
+#   snapshot               instantané complet immédiat (lecture seule)
+#   incidents              liste les dossiers d'incident
+#   set-password           enregistre le mot de passe de la capsule, CHIFFRÉ (remontage auto au boot)
+#   set-password --ephemeral   idem mais en mémoire seulement (perdu au reboot)
+#   mount                  montage manuel : demande le mot de passe au terminal si besoin
+#   unmount | clean        démonte / nettoie un montage planté
+#   audit                  vérifications de sécurité (lecture seule)
+#   mount-test [utilisateur]  teste identifiants en saisie directe au clavier (diagnostic)
+#   set-user [nom]         nom d'utilisateur AFP de la capsule (vide = aucun)
+source "${TC_LIB:-/usr/local/lib/timecapsule/timecapsule-lib.sh}"
+
+CRED_NAME=capsule-password
+CRED_PERSIST=/etc/timecapsule/$CRED_NAME.cred
+CRED_RUN=/run/timecapsule/$CRED_NAME.cred
+DROPIN_PERSIST=/etc/systemd/system/timecapsule-mount.service.d/10-credential.conf
+DROPIN_RUN=/run/systemd/system/timecapsule-mount.service.d/10-credential.conf
+
+need_root() { [ "$(id -u)" -eq 0 ] || exec sudo -E "$0" "$@"; }
+
+cmd_status() {
+    tc_state_load
+    local now; now=$(date +%s)
+    echo "État            : ${ST_STATE:-inconnu}  (depuis $(tc_human $(( now - ${ST_SINCE:-$now} ))))"
+    echo "Dernier OK      : $([ -n "${ST_LAST_GOOD_T:-}" ] && date -d "@$ST_LAST_GOOD_T" '+%F %T' || echo jamais)"
+    echo "Services        : mount=$(systemctl is-active timecapsule-mount.service) smbd=$(systemctl is-active smbd) keepalive-timer=$(systemctl is-active timecapsule-keepalive.timer) watchdog-timer=$(systemctl is-active timecapsule-watchdog.timer)"
+    echo "Mot de passe    : $([ -e $CRED_PERSIST ] && echo 'chiffré sur disque (remontage auto)' || { [ -e $CRED_RUN ] && echo 'en mémoire seulement (perdu au reboot)' || echo 'AUCUN -> sudo timecapsule-ctl set-password'; })"
+    [ -e "$TC_STATE_DIR/auth_failed" ] && echo "ATTENTION       : la capsule a REFUSÉ le mot de passe -> sudo timecapsule-ctl set-password"
+    echo
+    echo "Dernier instantané :"; echo "  ${ST_PREV_SNAP:-aucun}" | fold -s -w 110
+    echo; echo "Derniers événements :"; tail -n 8 "$TC_EVENTS" 2>/dev/null | cut -c1-200
+}
+
+cmd_report() {
+    local days=${1:-30}
+    [ -r "$TC_EVENTS" ] || { echo "Pas encore de journal ($TC_EVENTS)"; return; }
+    echo "=== Historique des changements d'état (derniers $days jours) ==="
+    awk -v days="$days" '
+        function f(k,   m) { if (match($0, k "=(\"[^\"]*\"|[^ ]+)")) { m = substr($0, RSTART + length(k) + 1, RLENGTH - length(k) - 1); gsub(/"/, "", m); return m } return "" }
+        /event=state_change/ {
+            n++; from = f("from"); to = f("to"); dur = f("prev_duration_s") + 0
+            printf "%s  %-9s -> %-9s  état précédent tenu %s\n    causes : %s\n    changé : %s\n", substr($1, 1, 19), from, to, f("prev_duration"), f("reasons"), f("changed")
+            if (from == "OK") { ok_n++; ok_sum += dur; if (dur > ok_max) ok_max = dur }
+            if (to == "DOWN") down_n++
+        }
+        /event=recovery_ok/   { rec++; rsum += f("duration_s") }
+        /event=recovery_failed/ { recfail++ }
+        END {
+            printf "\n=== Résumé ===\nchangements d'"'"'état : %d\npannes (->DOWN)      : %d\nrécupérations auto   : %d réussies, %d échouées\n", n, down_n, rec, recfail
+            if (ok_n) printf "période connectée moyenne : %.1f h, la plus longue : %.1f h\n", ok_sum / ok_n / 3600, ok_max / 3600
+        }' "$TC_EVENTS"
+}
+
+cmd_snapshot() {
+    tc_state_load; tc_snapshot; tc_classify
+    echo "Classe : $CLASS ($REASONS)"; echo "$SNAP" | tr ' ' '\n' | column -c 120
+}
+
+cmd_set_password() {
+    need_root set-password "$@"
+    command -v systemd-creds >/dev/null || { echo "systemd-creds absent (systemd >= 250 requis). Utilisez : timecapsule-ctl mount"; exit 1; }
+    local ephemeral=no PW1 PW2 dest dropin
+    [ "${1:-}" = "--ephemeral" ] && ephemeral=yes
+    read -rs -p "Mot de passe du disque de la Time Capsule : " PW1; echo
+    read -rs -p "Confirmer : " PW2; echo
+    [ -n "$PW1" ] && [ "$PW1" = "$PW2" ] || { echo "Vide ou différent, rien enregistré." >&2; exit 1; }
+    if [ $ephemeral = yes ]; then dest=$CRED_RUN; dropin=$DROPIN_RUN; else dest=$CRED_PERSIST; dropin=$DROPIN_PERSIST; fi
+    install -d -m 700 "$(dirname "$dest")" "$(dirname "$dropin")"
+    # le mot de passe passe par un pipe : jamais dans argv, jamais dans un fichier en clair
+    printf '%s' "$PW1" | systemd-creds encrypt --name=$CRED_NAME - "$dest"
+    local rc=$?; PW1=""; PW2=""; unset PW1 PW2
+    [ $rc -eq 0 ] || { echo "Chiffrement échoué." >&2; exit 1; }
+    chmod 600 "$dest"
+    # Vérifie que systemd sait bien le relire (service transitoire : le contenu n'est ni affiché ni comparé en clair)
+    if ! systemd-run --quiet --wait --pipe --collect -p "LoadCredentialEncrypted=$CRED_NAME:$dest" \
+            /bin/sh -c "test -s \"\$CREDENTIALS_DIRECTORY/$CRED_NAME\"" 2>/dev/null; then
+        rm -f "$dest"; echo "Le déchiffrement par systemd a échoué : rien n'a été enregistré. Utilisez : timecapsule-ctl mount (saisie manuelle)." >&2; exit 1
+    fi
+    printf '[Service]\nLoadCredentialEncrypted=%s:%s\n' $CRED_NAME "$dest" > "$dropin"
+    # une seule source à la fois
+    if [ $ephemeral = yes ]; then rm -f "$DROPIN_PERSIST"; else rm -f "$DROPIN_RUN" "$CRED_RUN"; fi
+    rm -f "$TC_STATE_DIR/auth_failed"
+    systemctl daemon-reload
+    tc_log INFO credential_set mode="$([ $ephemeral = yes ] && echo memory || echo encrypted_disk)"
+    echo "Mot de passe enregistré ($([ $ephemeral = yes ] && echo 'en mémoire seulement' || echo 'chiffré, déchiffré par systemd uniquement pour le service'))."
+}
+
+cmd_mount() {
+    need_root mount
+    if [ ! -e $CRED_PERSIST ] && [ ! -e $CRED_RUN ]; then
+        echo "Aucun mot de passe enregistré : saisie manuelle (gardé en mémoire jusqu'au prochain redémarrage)."
+        cmd_set_password --ephemeral || exit 1
+    fi
+    systemctl restart timecapsule-mount.service && systemctl start smbd && echo "Monté, Samba démarré." || { echo "Échec, voir : timecapsule-ctl logs" >&2; exit 1; }
+}
+
+cmd_mount_test() {
+    need_root mount-test "$@"
+    local user="${1-$CAPSULE_USER}"
+    echo "Test de montage en saisie directe au clavier (sans passer par systemd ni par un pipe)."
+    systemctl stop smbd timecapsule-mount.service 2>/dev/null
+    pkill -x afpfsd; sleep 1; mkdir -p "$MOUNT_POINT"; afpfsd; sleep 3
+    echo "Utilisateur envoyé : '${user:-<vide>}'"
+    afp_client mount "$CAPSULE_IP:$VOLUME_NAME" "$MOUNT_POINT" -u "$user" -p -
+    local rc=$?
+    tc_run 15 ls "$MOUNT_POINT"
+    echo; echo "=> afp_client rc=$rc ; lecture du volume rc=$TC_RC"
+    [ "$rc" = 0 ] && [ "$TC_RC" = 0 ] && echo "RÉSULTAT : mot de passe ACCEPTÉ en saisie directe." || echo "RÉSULTAT : mot de passe REFUSÉ en saisie directe."
+    /usr/local/bin/timecapsule-mount.sh clean
+    tc_log INFO mount_test afp_client_rc=$rc read_rc="$TC_RC"
+}
+
+cmd_set_user() { # nom d'utilisateur AFP de la capsule (vide = aucun) ; n'est pas un secret
+    need_root set-user "$@"
+    local u="${1:-}"
+    sed -i '/^CAPSULE_USER=/d' "$TC_CONF"
+    printf 'CAPSULE_USER=%q\n' "$u" >> "$TC_CONF"
+    rm -f "$TC_STATE_DIR/auth_failed"
+    tc_log INFO capsule_user_set user="${u:-<vide>}"
+    echo "Utilisateur AFP de la capsule : '${u:-<vide>}'. Ressaisissez le mot de passe si besoin : sudo timecapsule-ctl set-password"
+}
+
+cmd_audit() {
+    local w=0
+    ok()   { printf '  OK    %s\n' "$*"; }
+    warn() { printf '  WARN  %s\n' "$*"; w=$((w+1)); }
+    echo "=== Secrets ==="
+    local hits; hits=$(grep -rIlE "(PASSWORD|passwd|secret)=['\"A-Za-z0-9]|afp_client mount .* -p [^-]" /usr/local/bin/timecapsule* /etc/systemd/system /etc/cron.d /etc/timecapsule /root/.bash_history /home/*/.bash_history 2>/dev/null | grep -v '\.cred$')
+    [ -z "$hits" ] && ok "aucun mot de passe en clair dans les scripts, unités, cron" || { warn "mot de passe possiblement en clair dans :"; echo "$hits" | sed 's/^/          /'; }
+    for f in /etc/timecapsule /etc/timecapsule/capsule-password.cred; do
+        [ -e "$f" ] && { [ "$(stat -c %a "$f")" -le 700 ] && ok "$f permissions $(stat -c %a "$f")" || warn "$f trop ouvert ($(stat -c %a "$f"))"; }
+    done
+    [ -e $CRED_PERSIST ] || [ -e $CRED_RUN ] && ok "mot de passe de la capsule chiffré (systemd-creds)" || warn "aucun mot de passe enregistré"
+    echo "=== Accès ==="
+    local pa; pa=$(sshd -T 2>/dev/null | awk '/^passwordauthentication/{print $2}')
+    [ "$pa" = no ] && ok "SSH: mot de passe désactivé (clés seulement)" || warn "SSH: PasswordAuthentication=$pa (devrait être no)"
+    for p in 548:netatalk 111:rpcbind; do
+        ss -tln 2>/dev/null | grep -qE "[:.]${p%%:*}\b" && warn "port ${p%%:*} (${p##*:}) ouvert, inutile pour ce pont" || ok "port ${p%%:*} fermé"
+    done
+    echo "=== Système ==="
+    local up; up=$(apt list --upgradable 2>/dev/null | grep -c upgradable)
+    [ "$up" -eq 0 ] && ok "système à jour" || warn "$up paquets à mettre à jour (sudo apt update && sudo apt full-upgrade)"
+    dpkg -l unattended-upgrades 2>/dev/null | grep -q '^ii' && ok "mises à jour de sécurité automatiques" || warn "unattended-upgrades non installé"
+    [ -d /var/log/journal ] && [ -n "$(ls /var/log/journal 2>/dev/null)" ] && ok "journal systemd persistant" || warn "journal systemd en RAM : les logs disparaissent (installer.sh le corrige)"
+    local pid cg; pid=$(tc_afpfsd_pid)
+    if [ -n "$pid" ]; then cg=$(cat /proc/$pid/cgroup); case "$cg" in *cron.service*) warn "afpfsd tourne dans cron.service (ancienne installation)";; *) ok "afpfsd isole dans $cg";; esac; fi
+    [ -e /etc/cron.d/timecapsule ] || crontab -l 2>/dev/null | grep -q timecapsule && warn "anciennes tâches cron timecapsule encore présentes" || ok "plus de tâche cron (timers systemd)"
+    echo "=== Réseau ==="
+    local n; n=$(ip -4 -o addr show scope global | awk '{print $4}' | cut -d. -f1-3 | sort | uniq -d | wc -l)
+    [ "$n" -eq 0 ] && ok "une seule interface par sous-réseau" || warn "deux interfaces sur le même sous-réseau (eth0 + wlan0) : risque de trafic asymétrique, désactivez le Wi-Fi"
+    echo; echo "$w avertissement(s)."
+}
+
+[ "${1:-}" = help ] || [ "$(id -u)" -eq 0 ] || exec sudo -E "$0" "$@"
+case "${1:-status}" in
+    status)       cmd_status ;;
+    report)       shift; cmd_report "$@" ;;
+    logs)         shift; if [ "${1:-}" = "-f" ]; then tail -f "$TC_EVENTS"; else tail -n 60 "$TC_EVENTS"; fi ;;
+    snapshot)     need_root snapshot; cmd_snapshot ;;
+    incidents)    ls -lt "$TC_LOG_DIR/incidents" | head -20 ;;
+    set-password) shift; cmd_set_password "$@" ;;
+    mount)        cmd_mount ;;
+    unmount)      need_root unmount; systemctl stop smbd; /usr/local/bin/timecapsule-mount.sh unmount ;;
+    clean)        need_root clean; systemctl stop smbd; /usr/local/bin/timecapsule-mount.sh clean ;;
+    audit)        need_root audit; cmd_audit ;;
+    mount-test)   shift; cmd_mount_test "$@" ;;
+    set-user)     shift; cmd_set_user "$@" ;;
+    *)            sed -n '2,15p' "$0" ;;
+esac

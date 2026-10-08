@@ -1,0 +1,11 @@
+[Unit]
+Description=Time Capsule watchdog (detect, capture, remount)
+After=timecapsule-mount.service
+
+[Service]
+Type=oneshot
+TimeoutStartSec=420
+KillMode=control-group
+SendSIGKILL=yes
+TasksMax=60
+ExecStart=/usr/local/bin/timecapsule-watchdog.sh

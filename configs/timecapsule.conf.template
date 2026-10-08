@@ -1,0 +1,14 @@
+# /etc/timecapsule/timecapsule.conf  (root:root, chmod 600)
+# Réglages du pont. AUCUN MOT DE PASSE ICI : il est chiffré par systemd-creds
+# (voir `timecapsule-ctl set-password`).
+CAPSULE_IP=@CAPSULE_IP@
+VOLUME_NAME=@VOLUME_NAME@
+MOUNT_POINT=/mnt/timecapsule
+# Nom d'utilisateur AFP (vide = mot de passe de disque seul). Se change avec `timecapsule-ctl set-user`
+CAPSULE_USER=@CAPSULE_USER@
+
+# Seuils de surveillance (valeurs par défaut)
+#STAT_TIMEOUT=8          # s : au-delà, le montage est considéré bloqué
+#DISK_WARN_GB=150        # alerte si la capsule a moins de Go libres
+#FUSE_QUEUE_MAX=100      # requêtes FUSE en attente => montage bloqué
+#SNAPSHOT_EVERY_S=300    # instantané périodique quand tout va bien

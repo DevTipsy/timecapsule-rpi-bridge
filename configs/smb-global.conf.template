@@ -1,0 +1,8 @@
+# /etc/samba/timecapsule-global.conf  (inclus depuis [global])
+smbd:backgroundqueue = no
+netbios name = @NETBIOS_NAME@
+server string = Raspberry Pi Time Machine
+socket options = TCP_NODELAY IPTOS_LOWLATENCY SO_KEEPALIVE
+min protocol = SMB2
+kernel oplocks = no
+kernel share modes = no

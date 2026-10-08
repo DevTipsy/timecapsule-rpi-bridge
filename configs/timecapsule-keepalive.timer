@@ -1,0 +1,11 @@
+[Unit]
+Description=Time Capsule keepalive (every minute)
+
+[Timer]
+OnBootSec=1min
+# 60 s APRÈS la fin du précédent : deux exécutions ne se chevauchent jamais
+OnUnitInactiveSec=60s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
