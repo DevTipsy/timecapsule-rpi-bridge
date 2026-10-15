@@ -2,7 +2,7 @@
 smbd:backgroundqueue = no
 netbios name = @NETBIOS_NAME@
 server string = Raspberry Pi Time Machine
-socket options = TCP_NODELAY IPTOS_LOWLATENCY SO_KEEPALIVE
+socket options = TCP_NODELAY SO_KEEPALIVE
 min protocol = SMB2
 kernel oplocks = no
 kernel share modes = no
@@ -12,3 +12,7 @@ load printers = no
 printing = bsd
 printcap name = /dev/null
 disable spoolss = yes
+
+# Journalise chaque authentification (réussie ou refusée) avec le client : permet de comprendre
+# pourquoi un Mac n'arrive pas à se connecter. Voir /var/log/samba/log.*
+log level = 1 auth_audit:3

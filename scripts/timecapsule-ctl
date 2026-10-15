@@ -54,6 +54,24 @@ cmd_report() {
             printf "\n=== Résumé ===\nchangements d'"'"'état : %d\npannes (->DOWN)      : %d\nrécupérations auto   : %d réussies, %d échouées\n", n, down_n, rec, recfail
             if (ok_n) printf "période connectée moyenne : %.1f h, la plus longue : %.1f h\n", ok_sum / ok_n / 3600, ok_max / 3600
         }' "$TC_EVENTS"
+
+    echo
+    echo "=== Sauvegardes vues par le pont (trafic vers la capsule) ==="
+    awk '
+        function f(k,   m) { if (match($0, k "=(\"[^\"]*\"|[^ ]+)")) { m = substr($0, RSTART + length(k) + 1, RLENGTH - length(k) - 1); gsub(/"/, "", m); return m } return "" }
+        function epoch(iso,   y,mo,d,h,mi,s) { y=substr(iso,1,4); mo=substr(iso,6,2); d=substr(iso,9,2); h=substr(iso,12,2); mi=substr(iso,15,2); s=substr(iso,18,2); return mktime(y " " mo " " d " " h " " mi " " s) }
+        /event=backup_traffic_end/ {
+            st = f("started"); day = substr(st, 1, 10); n[day]++; dur[day] += f("duration_s"); tx[day] += f("to_capsule_mb"); rx[day] += f("from_capsule_mb")
+            e = epoch(st); if (prev && e - prev > 5400) gaps = gaps sprintf("  trou de %dh%02d avant %s\n", (e-prev)/3600, ((e-prev)%3600)/60, substr(st,1,16)); prev = e; total++
+        }
+        END {
+            if (!total) { print "(aucune sauvegarde détectée pour l'\''instant : le suivi est récent)"; exit }
+            for (d in n) printf "%s : %2d sauvegardes, durée moyenne %.0f min, %d Mo écrits / %d Mo lus\n", d, n[d], dur[d]/n[d]/60, tx[d], rx[d]
+            if (gaps != "") { print "Intervalles > 90 min entre deux sauvegardes :"; printf "%s", gaps } else print "Aucun intervalle > 90 min."
+        }' "$TC_EVENTS" | sort
+    echo
+    echo "=== Clients connectés au partage (connexions / déconnexions) ==="
+    grep -E "event=smb_clients_changed" "$TC_EVENTS" | tail -12 | sed -E 's/^([0-9T:-]{19})[^ ]* level=[A-Z]+ event=smb_clients_changed /\1  /' | cut -c1-170
 }
 
 cmd_snapshot() {

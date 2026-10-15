@@ -89,7 +89,7 @@ This guide walks you through:
 | Extended attributes not supported on FUSE/AFP | `streams_depot` instead of `streams_xattr` |
 | AFP mount disconnects over time | 3 layers of protection (see below) |
 | Spaces in volume name crash afpfs-ng | Rename volume without spaces in AirPort Utility |
-| Samba connection drops during backup | `socket options = TCP_NODELAY IPTOS_LOWLATENCY SO_KEEPALIVE` |
+| Samba connection drops during backup | `socket options = TCP_NODELAY SO_KEEPALIVE` |
 
 ## 3 Layers of Stability
 
@@ -133,6 +133,10 @@ Example (illustrative values):
 
 An **incident report** adds: the process list with kernel wait channel, `afpfsd` threads and cgroup, FUSE connection state, TCP details and kernel retransmission counters, interface error counters, ping and AFP probe, Samba sessions, and the last 30 minutes of kernel and service logs.
 
+**Backups seen by the bridge.** Each Time Machine run shows up as traffic to the capsule, so the Pi logs `backup_traffic_start` / `backup_traffic_end` (when, how long, how many MB each way, free space). `sudo timecapsule-ctl report` summarises them per day and flags gaps longer than 90 minutes, which answers "did the automatic backup run?" without relying on the Mac's logs (which only keep about 19 hours of detail). The Pi also logs every Samba connection and disconnection (`smb_clients_changed`), and Samba itself logs each authentication, successful or refused, with the client (`/var/log/samba/log.*`).
+
+**On the Mac**, run once `bash tools/install-mac-logger.sh` (a user LaunchAgent, no sudo; remove with `--uninstall`). Every 10 minutes it saves Time Machine's decisions (which destination it picked, the pre-backup write test, backup passes, failures, "Backup succeeded, elapsed time") to `~/Library/Logs/TimeCapsuleBridge/tm-events.log`, plus an environment line in `mac-env.log` (is a backup running, does the Pi answer on DNS/ping/SMB, is the share mounted, last snapshot of each destination, what blocks sleep).
+
 Warnings are raised before things break: free space on the capsule below 150 GB, slow responses, a FUSE queue building up, a packet storm from the AFP client, Samba stopped while the mount is healthy.
 
 On the Mac, [`tools/mac-timemachine-report.sh`](tools/mac-timemachine-report.sh) shows which destination Time Machine uses and groups its recent errors (disk full, broken pipe, ...).
@@ -151,7 +155,7 @@ On the Mac, [`tools/mac-timemachine-report.sh`](tools/mac-timemachine-report.sh)
 ```ini
 [global]
     smbd:backgroundqueue = no
-    socket options = TCP_NODELAY IPTOS_LOWLATENCY SO_KEEPALIVE
+    socket options = TCP_NODELAY SO_KEEPALIVE
     min protocol = SMB2
     kernel oplocks = no
     kernel share modes = no
@@ -195,6 +199,7 @@ installers/
   macos/, windows/                  Sources of the launchers (zips are built from these)
 tools/
   mac-timemachine-report.sh        Run on the Mac: Time Machine destinations and errors
+  mac-tm-logger.sh, install-mac-logger.sh   Durable Time Machine log on the Mac (LaunchAgent)
   build-installers.sh              Rebuild the installer zips
   build-pdfs.sh                    Rebuild the PDFs from docs/pdf-src/ (needs Google Chrome)
 docs/POSTMORTEM.md                 Why backups stopped after a few weeks

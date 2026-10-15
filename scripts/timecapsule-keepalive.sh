@@ -26,5 +26,7 @@ else
 fi
 
 tc_classify
+tc_track_smb
+tc_track_activity
 tc_update_state
 tc_state_save

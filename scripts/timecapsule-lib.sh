@@ -72,7 +72,7 @@ tc_afpfsd_pid() { pgrep -x afpfsd 2>/dev/null | head -n1; }
 # ------------------------------------------------------------------ état persistant
 TC_STATE_VARS="ST_STATE ST_SINCE ST_FAILS ST_LAST_GOOD_SNAP ST_LAST_GOOD_T ST_PREV_SNAP
 ST_CPU_PID ST_CPU_TICKS ST_CPU_T ST_TCP_PORT ST_TCP_SEGS ST_TCP_T ST_TCP_BYTES ST_DISK_AVAIL_GB ST_DISK_T
-ST_LAST_SNAPLOG ST_LAST_STILL"
+ST_LAST_SNAPLOG ST_LAST_STILL ST_SMB_CLIENTS ST_ACT ST_ACT_START ST_ACT_LASTBUSY ST_ACT_TX0 ST_ACT_RX0 ST_ACT_LOW"
 
 tc_state_load() { [ -r "$TC_STATE" ] && . "$TC_STATE"; return 0; }
 tc_state_save() {
@@ -175,6 +175,7 @@ tc_snapshot() {
     S smbd_active "$(systemctl is-active smbd 2>/dev/null)"
     S smbd_tasks "$(systemctl show smbd -p TasksCurrent --value 2>/dev/null)"
     tc_run 5 smbstatus -b
+    SMB_STATUS_OUT=$TC_OUT; SMB_STATUS_RC=$TC_RC
     S smb_sessions "$(grep -cE 'SMB[0-9]' <<<"$TC_OUT")"
 
     # -- limites de processus (cgroups) : le gel d'août est venu d'ici
@@ -207,6 +208,53 @@ tc_snapshot() {
         if [ "$TC_RC" = 0 ] && [ -n "$kb" ]; then ST_DISK_AVAIL_GB=$(( kb / 1024 / 1024 )); ST_DISK_T=$now; fi
     fi
     S capsule_free_gb "${ST_DISK_AVAIL_GB:-NA}"
+}
+
+# ------------------------------------------------------------------ suivi des clients Samba
+# Journalise qui se connecte / se déconnecte du partage (le Mac, l'iPhone en VPN...).
+tc_track_smb() {
+    [ "${SMB_STATUS_RC:-1}" = 0 ] || return 0           # smbstatus n'a pas répondu : ne rien conclure
+    local now cur added removed c
+    now=$(date +%s)
+    cur=$(awk '/SMB[0-9]/ {print $2 "@" $4}' <<<"$SMB_STATUS_OUT" | sort -u | tr '\n' ' ')
+    cur=${cur% }
+    if [ "$cur" != "${ST_SMB_CLIENTS:-}" ]; then
+        added=""; removed=""
+        for c in $cur; do case " ${ST_SMB_CLIENTS:-} " in *" $c "*) ;; *) added+="$c " ;; esac; done
+        for c in ${ST_SMB_CLIENTS:-}; do case " $cur " in *" $c "*) ;; *) removed+="$c " ;; esac; done
+        tc_log INFO smb_clients_changed added="${added% }" removed="${removed% }" now="${cur:-none}"
+        ST_SMB_CLIENTS=$cur
+    fi
+}
+
+# ------------------------------------------------------------------ activité de sauvegarde vue par le pont
+# Une sauvegarde Time Machine se voit au trafic vers la capsule (centaines de paquets/s).
+# On journalise début et fin de chaque période d'activité : quand, combien de temps, combien de données.
+# Cela donne l'historique des sauvegardes SANS dépendre des journaux du Mac (qui n'en gardent que ~19 h).
+tc_track_activity() {
+    local now busy=0 tx rx dur
+    now=$(date +%s)
+    [ "${s_tcp_pps:-NA}" != NA ] && [ "${s_tcp_pps}" -gt 300 ] 2>/dev/null && busy=1
+    tx=${s_tcp_tx_bytes:-0}; rx=${s_tcp_rx_bytes:-0}
+    if [ "${ST_ACT:-idle}" != active ]; then
+        if [ $busy = 1 ]; then
+            ST_ACT=active; ST_ACT_START=$now; ST_ACT_LASTBUSY=$now; ST_ACT_LOW=0; ST_ACT_TX0=$tx; ST_ACT_RX0=$rx
+            tc_log INFO backup_traffic_start pps="$s_tcp_pps" smb_clients="${ST_SMB_CLIENTS:-none}" capsule_free_gb="${s_capsule_free_gb:-NA}"
+        fi
+        return 0
+    fi
+    if [ $busy = 1 ]; then ST_ACT_LASTBUSY=$now; ST_ACT_LOW=0; return 0; fi
+    ST_ACT_LOW=$(( ${ST_ACT_LOW:-0} + 1 ))
+    if [ "$ST_ACT_LOW" -ge 2 ]; then                      # 2 sondes calmes de suite : la période est finie
+        dur=$(( ST_ACT_LASTBUSY - ST_ACT_START + 60 ))
+        local txmb=NA rxmb=NA
+        if [ "$tx" -ge "${ST_ACT_TX0:-0}" ] && [ "$rx" -ge "${ST_ACT_RX0:-0}" ]; then
+            txmb=$(( (tx - ST_ACT_TX0) / 1048576 )); rxmb=$(( (rx - ST_ACT_RX0) / 1048576 ))
+        fi
+        tc_log INFO backup_traffic_end started="$(date -d "@$ST_ACT_START" -Is)" duration_s="$dur" duration="$(tc_human "$dur")" \
+            to_capsule_mb="$txmb" from_capsule_mb="$rxmb" capsule_free_gb="${s_capsule_free_gb:-NA}"
+        ST_ACT=idle
+    fi
 }
 
 # ------------------------------------------------------------------ classification

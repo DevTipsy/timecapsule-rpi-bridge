@@ -1,7 +1,7 @@
-@page { size: A4; margin: 16mm 15mm 18mm 15mm; @bottom-center { content: counter(page) " / " counter(pages); font: 8pt Helvetica, Arial, sans-serif; color: #888; } }
+@page { size: A4; margin: 14mm 15mm 16mm 15mm; @bottom-center { content: counter(page) " / " counter(pages); font: 8pt Helvetica, Arial, sans-serif; color: #888; } }
 :root { --accent: #0b6bcb; --dark: #14202e; --soft: #eef4fb; --warn: #fff6e0; --warnb: #e6a700; --ok: #eaf7ee; --okb: #2b9a4d; --bad: #fdecec; --badb: #d33; }
 * { box-sizing: border-box; }
-body { font: 9.8pt/1.4 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; color: #1b1b1b; margin: 0; }
+body { font: 9.6pt/1.38 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; color: #1b1b1b; margin: 0; }
 h1 { font-size: 24pt; margin: 0 0 4pt; color: var(--dark); line-height: 1.15; }
 h2 { font-size: 14pt; color: #fff; background: var(--accent); padding: 4pt 9pt; margin: 14pt 0 7pt; border-radius: 3pt; page-break-after: avoid; }
 h3 { font-size: 11pt; color: var(--accent); margin: 10pt 0 3pt; page-break-after: avoid; }

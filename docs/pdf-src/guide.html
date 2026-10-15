@@ -111,7 +111,7 @@ sudo timecapsule-ctl report      # historique : durées connecté, causes, ce qu
 sudo timecapsule-ctl logs -f     # journal en direct
 sudo timecapsule-ctl incidents   # dossiers d'incident
 sudo timecapsule-ctl audit       # vérifications de sécurité</code></pre>
-<p>À chaque changement d'état, le journal (<code>/var/log/timecapsule/events.log</code>) garde : la <b>durée de l'état précédent</b> (donc combien de temps la connexion a tenu), les <b>causes</b>, les <b>champs qui ont changé</b> et les instantanés <b>avant / après</b> (montage, latence, capsule, client AFP, Samba, réseau, charge, espace libre…).</p>
+<p>À chaque changement d'état, le journal (<code>/var/log/timecapsule/events.log</code>) garde : la <b>durée de l'état précédent</b> (donc combien de temps la connexion a tenu), les <b>causes</b>, les <b>champs qui ont changé</b> et les instantanés <b>avant / après</b> (montage, latence, capsule, client AFP, Samba, réseau, charge, espace libre…). Il note aussi <b>chaque sauvegarde vue par le pont</b> (début, durée, volume transféré) et chaque connexion au partage : <code>timecapsule-ctl report</code> les résume par jour et signale les intervalles de plus de 90 min. Sur le Mac, <code>bash tools/install-mac-logger.sh</code> conserve les décisions de Time Machine (que le système n'efface qu'après ≈ 19 h).</p>
 
 <h3>9. Dépannage</h3>
 <table>
@@ -229,7 +229,7 @@ sudo timecapsule-ctl report      # history: connected durations, causes, what ch
 sudo timecapsule-ctl logs -f     # live log
 sudo timecapsule-ctl incidents   # incident reports
 sudo timecapsule-ctl audit       # security checks</code></pre>
-<p>At every state change the log (<code>/var/log/timecapsule/events.log</code>) keeps: the <b>duration of the previous state</b> (how long the connection held), the <b>causes</b>, the <b>fields that changed</b> and the <b>before / after</b> snapshots (mount, latency, capsule, AFP client, Samba, network, load, free space…).</p>
+<p>At every state change the log (<code>/var/log/timecapsule/events.log</code>) keeps: the <b>duration of the previous state</b> (how long the connection held), the <b>causes</b>, the <b>fields that changed</b> and the <b>before / after</b> snapshots (mount, latency, capsule, AFP client, Samba, network, load, free space…). It also records <b>every backup seen by the bridge</b> (start, duration, data moved) and every connection to the share: <code>timecapsule-ctl report</code> summarises them per day and flags gaps longer than 90 min. On the Mac, <code>bash tools/install-mac-logger.sh</code> keeps Time Machine's decisions (which the system erases after ≈ 19 h).</p>
 
 <h3>9. Troubleshooting</h3>
 <table>
