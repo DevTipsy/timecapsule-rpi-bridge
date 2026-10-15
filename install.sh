@@ -345,7 +345,7 @@ bold "
 
  Protections actives / Active protections :
    1. TCP keepalive noyau (sysctl)
-   2. Keepalive AFP chaque minute   (timecapsule-keepalive.timer)
+   2. Sonde en lecture seule chaque minute (timecapsule-keepalive.timer), sans réveiller le disque
    3. Watchdog chaque minute (timecapsule-watchdog.timer), avec dossier d'incident
 
  Commandes utiles / Useful commands :

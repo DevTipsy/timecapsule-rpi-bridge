@@ -23,6 +23,7 @@ STAT_TIMEOUT="${STAT_TIMEOUT:-8}"          # s, accès au montage
 DISK_WARN_GB="${DISK_WARN_GB:-150}"        # alerte si moins de Go libres sur la capsule
 FUSE_QUEUE_MAX="${FUSE_QUEUE_MAX:-100}"    # requêtes FUSE en attente => montage considéré bloqué
 SNAPSHOT_EVERY_S="${SNAPSHOT_EVERY_S:-300}" # instantané périodique quand tout va bien
+KEEPALIVE_WRITE_EVERY_S="${KEEPALIVE_WRITE_EVERY_S:-21600}"  # test d'écriture sur la capsule (0 = jamais). Rare : voir README
 DSI_PROBE="${DSI_PROBE:-/usr/local/bin/timecapsule-dsi-probe}"
 
 TC_EVENTS="$TC_LOG_DIR/events.log"
@@ -72,7 +73,7 @@ tc_afpfsd_pid() { pgrep -x afpfsd 2>/dev/null | head -n1; }
 # ------------------------------------------------------------------ état persistant
 TC_STATE_VARS="ST_STATE ST_SINCE ST_FAILS ST_LAST_GOOD_SNAP ST_LAST_GOOD_T ST_PREV_SNAP
 ST_CPU_PID ST_CPU_TICKS ST_CPU_T ST_TCP_PORT ST_TCP_SEGS ST_TCP_T ST_TCP_BYTES ST_DISK_AVAIL_GB ST_DISK_T
-ST_LAST_SNAPLOG ST_LAST_STILL ST_SMB_CLIENTS ST_ACT ST_ACT_START ST_ACT_LASTBUSY ST_ACT_TX0 ST_ACT_RX0 ST_ACT_LOW"
+ST_LAST_SNAPLOG ST_LAST_STILL ST_SMB_CLIENTS ST_ACT ST_ACT_START ST_ACT_LASTBUSY ST_ACT_TX0 ST_ACT_RX0 ST_ACT_LOW ST_LAST_KA_WRITE"
 
 tc_state_load() { [ -r "$TC_STATE" ] && . "$TC_STATE"; return 0; }
 tc_state_save() {
@@ -265,7 +266,6 @@ tc_classify() {
 
     if [ "$s_mount_present" != yes ]; then CLASS=DOWN; add not_mounted
     elif [ "$s_stat_rc" != 0 ]; then CLASS=DOWN; add "stat_failed_rc$s_stat_rc"; fi
-    if [ -n "${s_ka_rc:-}" ] && [ "$s_ka_rc" != 0 ] && [ "$s_ka_rc" != NA ]; then CLASS=DOWN; add "keepalive_write_failed_rc$s_ka_rc"; fi
     if [ "$s_fuse_waiting" != NA ] && [ "$s_fuse_waiting" -ge "$FUSE_QUEUE_MAX" ] 2>/dev/null; then CLASS=DOWN; add "fuse_queue_stalled_$s_fuse_waiting"; fi
     if [ "${s_dsi_rc:-0}" != 0 ] || [ "${s_ping_loss:-0}" = 100 ]; then add capsule_unreachable; fi
 
@@ -278,6 +278,7 @@ tc_classify() {
             CLASS=DEGRADED; add "tcp_packet_storm_${n}pps_${s_tcp_bytes_per_pkt}B"
         fi
         [ "${s_dsi_rc:-0}" != 0 ] && CLASS=DEGRADED
+        if [ -n "${s_ka_rc:-}" ] && [ "$s_ka_rc" != 0 ] && [ "$s_ka_rc" != NA ]; then CLASS=DEGRADED; add "write_test_failed_rc$s_ka_rc"; fi
         [ "${s_smbd_active:-}" != active ] && { CLASS=DEGRADED; add smbd_not_running; }
         n=${s_capsule_free_gb:-NA};   [ "$n" != NA ] && [ "$n" -lt "$DISK_WARN_GB" ] 2>/dev/null && { CLASS=DEGRADED; add "capsule_low_space_${n}GB"; }
     fi

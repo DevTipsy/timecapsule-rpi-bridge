@@ -102,7 +102,7 @@ cd timecapsule-rpi-bridge &amp;&amp; sudo bash install.sh</code></pre>
 <table>
   <tr><th>Couche</th><th>Rôle</th><th>Fréquence</th></tr>
   <tr><td>1. Keepalive TCP noyau</td><td>Détecte une connexion morte en ≈ 2 min</td><td>permanent</td></tr>
-  <tr><td>2. Keepalive AFP + sonde</td><td>Garde la session active, mesure l'état complet</td><td>chaque minute</td></tr>
+  <tr><td>2. Sonde en lecture seule</td><td>Vérifie le montage (lecture), la capsule, et mesure l'état complet. N'écrit pas chaque minute : le disque de la capsule s'endort après ≈ 1 min, y écrire en permanence l'empêcherait de dormir. Test d'écriture toutes les 6 h seulement</td><td>chaque minute</td></tr>
   <tr><td>3. Watchdog</td><td>Sauve un dossier d'incident, coupe Samba, débloque, remonte, vérifie, relance Samba</td><td>chaque minute</td></tr>
 </table>
 <p>Ces tâches sont des <b>timers systemd</b> (et non cron) : ils ne se chevauchent jamais, sont tués après un délai, et ne peuvent pas s'empiler. Samba ne démarre que si la capsule est montée. Une panne simulée (client AFP tué) est réparée en ≈ 80 secondes.</p>
@@ -220,7 +220,7 @@ cd timecapsule-rpi-bridge &amp;&amp; sudo bash install.sh</code></pre>
 <table>
   <tr><th>Layer</th><th>Role</th><th>Frequency</th></tr>
   <tr><td>1. Kernel TCP keepalive</td><td>Detects a dead connection in ≈ 2 min</td><td>permanent</td></tr>
-  <tr><td>2. AFP keepalive + probe</td><td>Keeps the session alive, records the full state</td><td>every minute</td></tr>
+  <tr><td>2. Read-only probe</td><td>Checks the mount (read), the capsule, and records the full state. Does not write every minute: the capsule's disk sleeps after ≈ 1 min, writing constantly would keep it awake. Write test every 6 h only</td><td>every minute</td></tr>
   <tr><td>3. Watchdog</td><td>Saves an incident report, stops Samba, unblocks, re-mounts, verifies, restarts Samba</td><td>every minute</td></tr>
 </table>
 <p>These jobs are <b>systemd timers</b> (not cron): they never overlap, are killed after a timeout, and cannot pile up. Samba only starts when the capsule is mounted. A simulated crash (AFP client killed) is repaired in ≈ 80 seconds.</p>

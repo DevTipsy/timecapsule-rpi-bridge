@@ -12,3 +12,4 @@ CAPSULE_USER=@CAPSULE_USER@
 #DISK_WARN_GB=150        # alerte si la capsule a moins de Go libres
 #FUSE_QUEUE_MAX=100      # requêtes FUSE en attente => montage bloqué
 #SNAPSHOT_EVERY_S=300    # instantané périodique quand tout va bien
+#KEEPALIVE_WRITE_EVERY_S=21600   # test d'écriture sur la capsule, en secondes (0 = jamais, 60 = ancien comportement)
