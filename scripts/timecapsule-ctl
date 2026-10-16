@@ -13,6 +13,7 @@
 #   audit                  vérifications de sécurité (lecture seule)
 #   mount-test [utilisateur]  teste identifiants en saisie directe au clavier (diagnostic)
 #   set-user [nom]         nom d'utilisateur AFP de la capsule (vide = aucun)
+#   set-max-size 1200G|none  taille maximale que Time Machine peut utiliser sur la capsule
 source "${TC_LIB:-/usr/local/lib/timecapsule/timecapsule-lib.sh}"
 
 CRED_NAME=capsule-password
@@ -144,6 +145,22 @@ cmd_set_user() { # nom d'utilisateur AFP de la capsule (vide = aucun) ; n'est pa
     echo "Utilisateur AFP de la capsule : '${u:-<vide>}'. Ressaisissez le mot de passe si besoin : sudo timecapsule-ctl set-password"
 }
 
+cmd_set_max_size() { # taille maximale de la sauvegarde Time Machine (quota Samba) ; "none" = illimitée
+    need_root set-max-size "$@"
+    local v="${1:-}" share=/etc/samba/timecapsule-share.conf free
+    [[ "$v" =~ ^[0-9]+[GT]$ ]] || [ "$v" = none ] || { echo "Usage : timecapsule-ctl set-max-size 1200G   (ou 'none' pour illimité)"; return 1; }
+    [ -f "$share" ] || { echo "$share introuvable : le pont est-il installé ?"; return 1; }
+    cp "$share" "$share.bak"
+    sed -i '/^fruit:time machine max size/d' "$share"
+    [ "$v" = none ] || printf 'fruit:time machine max size = %s\n' "$v" >> "$share"
+    if ! testparm -s >/dev/null 2>&1; then cp "$share.bak" "$share"; echo "Configuration Samba invalide, ancienne valeur rétablie."; return 1; fi
+    smbcontrol all reload-config
+    free=$(df -Pk "$MOUNT_POINT" 2>/dev/null | awk 'NR==2{printf "%d", $4/1024/1024}')
+    tc_log INFO max_size_set value="$v" capsule_free_gb="${free:-NA}"
+    echo "Taille maximale : $v (rechargé sans coupure). Elle sera prise en compte par le Mac à sa prochaine connexion / sauvegarde."
+    echo "Conseil : choisir un peu plus que la place déjà utilisée par la sauvegarde + une marge, mais jamais plus que la place réelle de la capsule."
+}
+
 cmd_audit() {
     local w=0
     ok()   { printf '  OK    %s\n' "$*"; }
@@ -189,5 +206,6 @@ case "${1:-status}" in
     audit)        need_root audit; cmd_audit ;;
     mount-test)   shift; cmd_mount_test "$@" ;;
     set-user)     shift; cmd_set_user "$@" ;;
+    set-max-size) shift; cmd_set_max_size "$@" ;;
     *)            sed -n '2,15p' "$0" ;;
 esac
